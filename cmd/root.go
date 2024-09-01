@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/enclave-ci/aerie/internal/setup"
 	"github.com/spf13/cobra"
+
+	"github.com/enclave-ci/aerie/internal/setup"
 )
 
 var (
