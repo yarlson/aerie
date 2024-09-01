@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"syscall"
 
+	"github.com/enclave-ci/aerie/internal/ssh"
+	"github.com/enclave-ci/aerie/pkg/utils"
 	"github.com/spf13/cobra"
-	"github.com/yarlson/aerie/internal/ssh"
-	"github.com/yarlson/aerie/pkg/utils"
 	gssh "golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )

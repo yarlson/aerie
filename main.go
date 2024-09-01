@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yarlson/aerie/cmd"
+	"github.com/enclave-ci/aerie/cmd"
 )
 
 func main() {
