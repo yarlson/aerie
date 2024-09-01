@@ -24,3 +24,5 @@ go.work
 # JetBrains config
 .idea
 /aerie
+
+.DS_Store

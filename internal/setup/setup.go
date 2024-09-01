@@ -6,9 +6,17 @@ import (
 
 	"github.com/enclave-ci/aerie/internal/ssh"
 	"github.com/enclave-ci/aerie/pkg/utils"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	gssh "golang.org/x/crypto/ssh"
 	"golang.org/x/term"
+)
+
+var (
+	info    = color.New(color.FgCyan).PrintlnFunc()
+	success = color.New(color.FgGreen).PrintlnFunc()
+	warning = color.New(color.FgYellow).PrintlnFunc()
+	err     = color.New(color.FgRed).PrintlnFunc()
 )
 
 func RunSetup(cmd *cobra.Command, args []string) {
@@ -17,101 +25,101 @@ func RunSetup(cmd *cobra.Command, args []string) {
 	sshKeyPath, _ := cmd.Flags().GetString("ssh-key")
 	rootKeyPath, _ := cmd.Flags().GetString("root-key")
 
-	fmt.Println("Starting server setup process...")
+	info("Starting server setup process...")
 
 	// Find appropriate SSH keys
-	fmt.Println("Locating SSH keys...")
-	rootKey, err := utils.FindSSHKey(rootKeyPath, true)
-	if err != nil {
-		fmt.Printf("Failed to find root SSH key: %v\n", err)
+	info("Locating SSH keys...")
+	rootKey, e := utils.FindSSHKey(rootKeyPath, true)
+	if e != nil {
+		err("Failed to find root SSH key:", e)
 		return
 	}
-	fmt.Println("Root SSH key found.")
+	success("Root SSH key found.")
 
-	userKey, err := utils.FindSSHKey(sshKeyPath, false)
-	if err != nil {
-		fmt.Println("Failed to find user SSH key, using root key for new user")
+	userKey, e := utils.FindSSHKey(sshKeyPath, false)
+	if e != nil {
+		warning("Failed to find user SSH key, using root key for new user")
 		userKey = rootKey
 	} else {
-		fmt.Println("User SSH key found.")
+		success("User SSH key found.")
 	}
 
 	// Prompt for new user password
 	fmt.Print("Enter password for new user: ")
-	newUserPassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		fmt.Printf("\nFailed to read new user password: %v\n", err)
+	newUserPassword, e := term.ReadPassword(int(syscall.Stdin))
+	if e != nil {
+		err("\nFailed to read new user password:", e)
 		return
 	}
-	fmt.Println("\nPassword received.")
+	success("\nPassword received.")
 
 	// Connect to SSH
-	client, err := ssh.Connect(host, rootKey)
-	if err != nil {
-		fmt.Printf("Failed to connect: %v\n", err)
+	client, e := ssh.Connect(host, rootKey)
+	if e != nil {
+		err("Failed to connect:", e)
 		return
 	}
 	defer client.Close()
 
 	// Perform setup steps
-	if err := createUser(client, newUser, string(newUserPassword)); err != nil {
+	if e := createUser(client, newUser, string(newUserPassword)); e != nil {
 		return
 	}
 
-	if err := setupSSHKey(client, newUser, userKey); err != nil {
+	if e := setupSSHKey(client, newUser, userKey); e != nil {
 		return
 	}
 
-	if err := installSoftware(client); err != nil {
+	if e := installSoftware(client); e != nil {
 		return
 	}
 
-	if err := configureUFW(client); err != nil {
+	if e := configureUFW(client); e != nil {
 		return
 	}
 
-	fmt.Println("Setup completed successfully!")
+	success("Setup completed successfully!")
 }
 
 func createUser(client *ssh.Client, newUser, password string) error {
-	fmt.Printf("Creating new user: %s\n", newUser)
-	if err := client.RunCommand(fmt.Sprintf("adduser --gecos '' --disabled-password %s", newUser)); err != nil {
-		fmt.Printf("Failed to create user: %v\n", err)
-		return err
+	info("Creating new user:", newUser)
+	if e := client.RunCommand(fmt.Sprintf("adduser --gecos '' --disabled-password %s", newUser)); e != nil {
+		err("Failed to create user:", e)
+		return e
 	}
 
-	if err := client.RunCommand(fmt.Sprintf("echo '%s:%s' | chpasswd", newUser, password)); err != nil {
-		fmt.Printf("Failed to set user password: %v\n", err)
-		return err
+	if e := client.RunCommand(fmt.Sprintf("echo '%s:%s' | chpasswd", newUser, password)); e != nil {
+		err("Failed to set user password:", e)
+		return e
 	}
-	fmt.Println("User created successfully.")
+	success("User created successfully.")
 	return nil
 }
 
 func setupSSHKey(client *ssh.Client, newUser string, userKey []byte) error {
-	fmt.Println("Setting up SSH key for new user...")
-	userPubKey, err := gssh.ParsePrivateKey(userKey)
-	if err != nil {
-		fmt.Printf("Failed to parse user private key: %v\n", err)
-		return err
+	info("Setting up SSH key for new user...")
+	userPubKey, e := gssh.ParsePrivateKey(userKey)
+	if e != nil {
+		err("Failed to parse user private key:", e)
+		return e
 	}
 	userPubKeyString := string(gssh.MarshalAuthorizedKey(userPubKey.PublicKey()))
 
-	if err := client.RunCommand(fmt.Sprintf("mkdir -p /home/%s/.ssh", newUser)); err != nil {
-		fmt.Printf("Failed to create .ssh directory: %v\n", err)
-		return err
+	if e := client.RunCommand(fmt.Sprintf("mkdir -p /home/%s/.ssh", newUser)); e != nil {
+		err("Failed to create .ssh directory:", e)
+		return e
 	}
 
-	if err := client.RunCommand(fmt.Sprintf("echo '%s' >> /home/%s/.ssh/authorized_keys", userPubKeyString, newUser)); err != nil {
-		fmt.Printf("Failed to add SSH key: %v\n", err)
-		return err
+	if e := client.RunCommand(fmt.Sprintf("echo '%s' >> /home/%s/.ssh/authorized_keys", userPubKeyString, newUser)); e != nil {
+		err("Failed to add SSH key:", e)
+		return e
 	}
-	fmt.Println("SSH key setup completed.")
+	success("SSH key setup completed.")
 	return nil
 }
 
 func installSoftware(client *ssh.Client) error {
-	fmt.Println("Installing essential software and Docker...")
+	info("Installing essential software and Docker...")
 	commands := []string{
 		"apt-get update",
 		"apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
@@ -122,37 +130,37 @@ func installSoftware(client *ssh.Client) error {
 	}
 
 	for _, cmd := range commands {
-		fmt.Printf("Running: %s", cmd)
-		if err := client.RunCommandWithProgress(cmd); err != nil {
-			fmt.Printf("\nCommand failed: %v\n", err)
-			return err
+		info("Running:", cmd)
+		if e := client.RunCommandWithProgress(cmd); e != nil {
+			err("\nCommand failed:", e)
+			return e
 		}
 	}
-	fmt.Println("Essential software and Docker installed successfully.")
+	success("Essential software and Docker installed successfully.")
 
-	fmt.Println("Checking Docker Compose installation...")
-	if err := client.RunCommand("docker compose version"); err != nil {
-		fmt.Println("Docker Compose not found. Installing...")
+	info("Checking Docker Compose installation...")
+	if e := client.RunCommand("docker compose version"); e != nil {
+		warning("Docker Compose not found. Installing...")
 		composeCommands := []string{
 			"curl -L \"https://github.com/docker/compose/releases/download/v2.17.2/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose",
 			"chmod +x /usr/local/bin/docker-compose",
 		}
 		for _, cmd := range composeCommands {
-			fmt.Printf("Running: %s", cmd)
-			if err := client.RunCommandWithProgress(cmd); err != nil {
-				fmt.Printf("\nFailed to install Docker Compose: %v\n", err)
-				return err
+			info("Running:", cmd)
+			if e := client.RunCommandWithProgress(cmd); e != nil {
+				err("\nFailed to install Docker Compose:", e)
+				return e
 			}
 		}
-		fmt.Println("Docker Compose installed successfully.")
+		success("Docker Compose installed successfully.")
 	} else {
-		fmt.Println("Docker Compose is already installed.")
+		success("Docker Compose is already installed.")
 	}
 	return nil
 }
 
 func configureUFW(client *ssh.Client) error {
-	fmt.Println("Installing and configuring UFW...")
+	info("Installing and configuring UFW...")
 	ufwCommands := []string{
 		"apt-get install -y ufw",
 		"ufw default deny incoming",
@@ -164,12 +172,12 @@ func configureUFW(client *ssh.Client) error {
 	}
 
 	for _, cmd := range ufwCommands {
-		fmt.Printf("Running: %s", cmd)
-		if err := client.RunCommandWithProgress(cmd); err != nil {
-			fmt.Printf("\nFailed to run UFW command: %v\n", err)
-			return err
+		info("Running:", cmd)
+		if e := client.RunCommandWithProgress(cmd); e != nil {
+			err("\nFailed to run UFW command:", e)
+			return e
 		}
 	}
-	fmt.Println("UFW installed and configured successfully.")
+	success("UFW installed and configured successfully.")
 	return nil
 }
