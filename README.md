@@ -33,20 +33,36 @@ To use Aerie, run the following command:
 ```
 
 Required flags:
-
 - `--host, -H`: The IP address of the target server
 - `--user, -u`: The username for the new user to be created
 
 Optional flags:
-
 - `--ssh-key, -k`: Path to the SSH public key file for the new user
 - `--root-key, -r`: Path to the root SSH private key file
 
 Example:
-
 ```
 ./aerie --host 192.168.1.100 --user newadmin --ssh-key ~/.ssh/id_rsa.pub --root-key ~/.ssh/root_id_rsa
 ```
+
+## 🔑 SSH Key Handling
+
+Aerie provides flexible options for SSH key management:
+
+### Root SSH Key
+- If `--root-key` is provided, Aerie will use this key to connect to the server as root.
+- If not provided, Aerie will search for a suitable SSH key in the following order:
+  1. `~/.ssh/id_rsa`
+  2. `~/.ssh/id_ecdsa`
+  3. `~/.ssh/id_ed25519`
+- If no suitable key is found, Aerie will return an error.
+
+### New User SSH Key
+- If `--ssh-key` is provided, Aerie will use this key for the new user.
+- If not provided, Aerie will search for a suitable SSH key in the same order as the root key.
+- If no suitable key is found for the new user, Aerie will use the root key for the new user.
+
+This flexible approach allows Aerie to work with your existing SSH setup while providing options for custom key paths when needed.
 
 ## ⚙️ Configuration
 
