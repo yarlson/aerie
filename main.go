@@ -24,8 +24,8 @@ func main() {
 	rootCmd.Flags().StringP("ssh-key", "k", "", "Path to the SSH public key file for the new user")
 	rootCmd.Flags().StringP("root-key", "r", "", "Path to the root SSH private key file")
 
-	rootCmd.MarkFlagRequired("host")
-	rootCmd.MarkFlagRequired("user")
+	_ = rootCmd.MarkFlagRequired("host")
+	_ = rootCmd.MarkFlagRequired("user")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
