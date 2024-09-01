@@ -28,14 +28,15 @@ func RunSetup(cmd *cobra.Command, args []string) {
 
 	info("Starting server provisioning process...")
 
-	// Find appropriate SSH keys
-	info("Locating SSH keys for server access...")
-	rootKey, e := utils.FindSSHKey(rootKeyPath, true)
+	// Find appropriate SSH keys and establish connection
+	info("Locating SSH keys and establishing connection to the server...")
+	client, rootKey, e := utils.FindKeyAndConnect(host, rootKeyPath)
 	if e != nil {
-		err("Failed to find root SSH key for server access:", e)
+		err("Failed to find a suitable SSH key and connect to the server:", e)
 		return
 	}
-	success("Root SSH key for server access found.")
+	defer client.Close()
+	success("SSH connection to the server established.")
 
 	userKey, e := utils.FindSSHKey(sshKeyPath, false)
 	if e != nil {
@@ -53,16 +54,6 @@ func RunSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 	success("\nServer user password received.")
-
-	// Connect to SSH
-	info("Establishing SSH connection to the server...")
-	client, e := ssh.Connect(host, rootKey)
-	if e != nil {
-		err("Failed to connect to the server:", e)
-		return
-	}
-	defer client.Close()
-	success("SSH connection to the server established.")
 
 	// Perform provisioning steps
 	if e := createServerUser(client, newUser, string(newUserPassword)); e != nil {

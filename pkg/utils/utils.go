@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/enclave-ci/aerie/internal/ssh"
 )
 
 func FindSSHKey(keyPath string, isRoot bool) ([]byte, error) {
@@ -34,4 +36,18 @@ func FindSSHKey(keyPath string, isRoot bool) ([]byte, error) {
 		return nil, fmt.Errorf("no suitable SSH key found in .ssh directory")
 	}
 	return nil, nil
+}
+
+func FindKeyAndConnect(host, rootKeyPath string) (*ssh.Client, []byte, error) {
+	rootKey, err := FindSSHKey(rootKeyPath, true)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to find root SSH key: %v", err)
+	}
+
+	client, err := ssh.Connect(host, rootKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to establish SSH connection: %v", err)
+	}
+
+	return client, rootKey, nil
 }
