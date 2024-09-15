@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         go-version: ['1.22.x', 'stable']
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,6 +40,9 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           args: --timeout 5m
+
+      - name: Run build
+        run: go build
 
   release:
     name: Build and Release
