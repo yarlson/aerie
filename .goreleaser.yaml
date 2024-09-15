@@ -1,3 +1,5 @@
+version: 2
+
 project_name: aerie
 
 builds:
@@ -19,13 +21,11 @@ archives:
     files:
       - LICENSE
       - README.md
-      - CHANGELOG.md
 
 release:
   github:
     owner: enclave-ci
     name: aerie
-
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
