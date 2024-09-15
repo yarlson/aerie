@@ -38,16 +38,16 @@ func FindSSHKey(keyPath string, isRoot bool) ([]byte, error) {
 	return nil, nil
 }
 
-func FindKeyAndConnect(host, rootKeyPath string) (*ssh.Client, []byte, error) {
-	rootKey, err := FindSSHKey(rootKeyPath, true)
+func FindKeyAndConnectWithUser(host, user, keyPath string) (*ssh.Client, []byte, error) {
+	key, err := FindSSHKey(keyPath, true)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find root SSH key: %v", err)
+		return nil, nil, fmt.Errorf("failed to find SSH key: %v", err)
 	}
 
-	client, err := ssh.Connect(host, rootKey)
+	client, err := ssh.ConnectWithUser(host, user, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to establish SSH connection: %v", err)
 	}
 
-	return client, rootKey, nil
+	return client, key, nil
 }

@@ -30,7 +30,7 @@ func RunSetup(cmd *cobra.Command, args []string) {
 
 	// Find appropriate SSH keys and establish connection
 	info("Locating SSH keys and establishing connection to the server...")
-	client, rootKey, e := utils.FindKeyAndConnect(host, rootKeyPath)
+	client, rootKey, e := utils.FindKeyAndConnectWithUser(host, newUser, rootKeyPath)
 	if e != nil {
 		err("Failed to find a suitable SSH key and connect to the server:", e)
 		return

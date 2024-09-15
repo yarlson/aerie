@@ -26,3 +26,7 @@ go.work
 /aerie
 
 .DS_Store
+
+/code.*
+/docs/
+/config/
