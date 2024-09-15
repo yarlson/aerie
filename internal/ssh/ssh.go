@@ -29,7 +29,7 @@ func ConnectWithUser(host, user string, key []byte) (*Client, error) {
 		Timeout:         10 * time.Second,
 	}
 
-	client, err := ssh.Dial("tcp", host+":22", config)
+	client, err := ssh.Dial("tcp", host, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}

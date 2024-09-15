@@ -38,7 +38,7 @@ func RunSetup(cmd *cobra.Command, args []string) {
 	defer client.Close()
 	success("SSH connection to the server established.")
 
-	userKey, e := utils.FindSSHKey(sshKeyPath, false)
+	userKey, e := utils.FindSSHKey(sshKeyPath)
 	if e != nil {
 		warning("Failed to find user SSH key, will use root key for new user on the server")
 		userKey = rootKey
