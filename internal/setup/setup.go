@@ -9,8 +9,8 @@ import (
 	gssh "golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 
-	"github.com/enclave-ci/aerie/internal/ssh"
-	"github.com/enclave-ci/aerie/pkg/utils"
+	"github.com/yarlson/aerie/internal/ssh"
+	"github.com/yarlson/aerie/pkg/utils"
 )
 
 var (

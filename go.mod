@@ -1,4 +1,4 @@
-module github.com/enclave-ci/aerie
+module github.com/yarlson/aerie
 
 go 1.23
 

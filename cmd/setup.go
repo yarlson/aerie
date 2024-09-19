@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/enclave-ci/aerie/internal/setup"
+	"github.com/yarlson/aerie/internal/setup"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/enclave-ci/aerie/internal/ssh"
+	"github.com/yarlson/aerie/internal/ssh"
 )
 
 // sshKeyPath is used only for testing purposes

@@ -9,8 +9,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/enclave-ci/aerie/internal/ssh"
-	"github.com/enclave-ci/aerie/pkg/utils"
+	"github.com/yarlson/aerie/internal/ssh"
+	"github.com/yarlson/aerie/pkg/utils"
 )
 
 var (

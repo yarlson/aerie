@@ -9,7 +9,7 @@ To install Aerie, ensure you have Go 1.21 or later installed on your system. The
 1. Clone the repository:
 
 ```shell
-git clone https://github.com/enclave-ci/aerie.git
+git clone https://github.com/yarlson/aerie.git
 ```
 
 2. Navigate to the project directory:
