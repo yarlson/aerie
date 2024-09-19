@@ -80,6 +80,7 @@ func buildDockerImage(version, appDir string) error {
 }
 
 func transferDockerImage(client *ssh.Client, version string) error {
+	// Save the Docker image to a tar file
 	info("Saving Docker image to a tar file...")
 	imageTag := fmt.Sprintf("myapp-web:%s", version)
 	tarFile := fmt.Sprintf("myapp-web-%s.tar", version)
@@ -91,58 +92,76 @@ func transferDockerImage(client *ssh.Client, version string) error {
 	}
 	defer os.Remove(tarFile)
 
+	// Transfer the tar file to the server
 	info("Transferring Docker image to the server...")
 	if err := client.UploadFile(tarFile, tarFile); err != nil {
 		return err
 	}
 
 	// Load the image on the server
-	info("Loading Docker image on the server...")
-	if err := client.RunCommand(fmt.Sprintf("docker load -i %s", tarFile)); err != nil {
+	commands := []string{
+		fmt.Sprintf("docker load -i %s", tarFile),
+		fmt.Sprintf("rm %s", tarFile), // Remove the tar file from the server
+	}
+
+	if err := client.RunCommandWithProgress(
+		"Loading Docker image on the server...",
+		"Docker image loaded on the server.",
+		commands,
+	); err != nil {
 		return err
 	}
 
-	// Remove the tar file from the server
-	return client.RunCommand(fmt.Sprintf("rm %s", tarFile))
+	return nil
 }
 
 func deployOnServer(client *ssh.Client, version string) error {
 	info("Starting zero-downtime deployment on the server...")
 
-	// Navigate to the application directory
+	// Commands to deploy the new version
 	appDir := "~/app" // Assuming the app is in ~/app on the server
-	cdCmd := fmt.Sprintf("cd %s", appDir)
+	commands := []string{
+		fmt.Sprintf("cd %s", appDir),
+		fmt.Sprintf("export VERSION=%s", version),
+		"docker compose up -d --no-deps --no-recreate --scale web=2",
+	}
 
-	// Set environment variable VERSION on the server
-	setVersionCmd := fmt.Sprintf("export VERSION=%s", version)
-
-	// Pull the new image (if using a registry)
-	// For this example, we assume the image is already loaded on the server
-
-	// Scale up the service
-	scaleUpCmd := "docker compose up -d --no-deps --no-recreate --scale web=2"
-	fullScaleUpCmd := fmt.Sprintf("%s && %s && %s", cdCmd, setVersionCmd, scaleUpCmd)
-	if err := client.RunCommandWithProgress(fullScaleUpCmd); err != nil {
+	if err := client.RunCommandWithProgress(
+		"Deploying new version to the server...",
+		"New version deployed successfully.",
+		commands,
+	); err != nil {
 		return err
 	}
 
-	// Wait for new container to start and pass health checks
-	info("Waiting for the new container to become healthy...")
+	// Wait for the new container to become healthy
 	if err := waitForServiceHealthy(client, "web", 120*time.Second); err != nil {
 		// Rollback
 		warning("Service did not become healthy, rolling back...")
-		scaleDownCmd := "docker compose up -d --no-deps --no-recreate --scale web=1"
-		fullScaleDownCmd := fmt.Sprintf("%s && %s", cdCmd, scaleDownCmd)
-		if rollbackErr := client.RunCommandWithProgress(fullScaleDownCmd); rollbackErr != nil {
+		rollbackCommands := []string{
+			fmt.Sprintf("cd %s", appDir),
+			"docker compose up -d --no-deps --no-recreate --scale web=1",
+		}
+		if rollbackErr := client.RunCommandWithProgress(
+			"Rolling back deployment...",
+			"Rollback completed.",
+			rollbackCommands,
+		); rollbackErr != nil {
 			return fmt.Errorf("failed to rollback: %v", rollbackErr)
 		}
 		return fmt.Errorf("deployment failed: %v", err)
 	}
 
 	// Scale down the old service
-	scaleDownCmd := "docker compose up -d --no-deps --no-recreate --scale web=1"
-	fullScaleDownCmd := fmt.Sprintf("%s && %s", cdCmd, scaleDownCmd)
-	if err := client.RunCommandWithProgress(fullScaleDownCmd); err != nil {
+	scaleDownCommands := []string{
+		fmt.Sprintf("cd %s", appDir),
+		"docker compose up -d --no-deps --no-recreate --scale web=1",
+	}
+	if err := client.RunCommandWithProgress(
+		"Scaling down old version...",
+		"Old version scaled down.",
+		scaleDownCommands,
+	); err != nil {
 		return err
 	}
 
@@ -150,6 +169,7 @@ func deployOnServer(client *ssh.Client, version string) error {
 }
 
 func waitForServiceHealthy(client *ssh.Client, serviceName string, timeout time.Duration) error {
+	info("Waiting for the new container to become healthy...")
 	start := time.Now()
 	for {
 		if time.Since(start) > timeout {
@@ -163,6 +183,7 @@ func waitForServiceHealthy(client *ssh.Client, serviceName string, timeout time.
 		}
 		if output == "healthy\n" || output == "healthy" {
 			// Service is healthy
+			success("New container is healthy.")
 			return nil
 		}
 		// Sleep before retrying

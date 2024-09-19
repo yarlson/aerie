@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/briandowns/spinner"
+	"github.com/fatih/color"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
@@ -52,34 +54,44 @@ func (c *Client) RunCommand(command string) error {
 	return nil
 }
 
-func (c *Client) RunCommandWithProgress(command string) error {
-	session, err := c.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
+func (c *Client) RunCommandWithProgress(initialMsg, completeMsg string, commands []string) error {
+	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond) // Braille spinner
+	s.Suffix = " " + initialMsg
+	_ = s.Color("yellow")
+	s.Start()
 
-	done := make(chan bool)
-	go func() {
-		fmt.Print("\n")
-		for {
-			select {
-			case <-done:
-				fmt.Print("\n")
-				return
-			default:
-				fmt.Print(".")
-				time.Sleep(time.Second)
-			}
+	for _, command := range commands {
+		session, err := c.NewSession()
+		if err != nil {
+			s.Stop()
+			return err
 		}
-	}()
 
-	output, err := session.CombinedOutput(command)
-	done <- true
+		output, err := session.CombinedOutput(command)
+		session.Close()
+		if err != nil {
+			s.Stop()
 
-	if err != nil {
-		return fmt.Errorf("command failed: %v\nOutput: %s", err, string(output))
+			errorMessage := fmt.Sprintf(
+				"\n%s Command failed: %s\n%s %v\n%s\n%s",
+				color.New(color.FgRed).SprintFunc()("X"),
+				color.New(color.FgYellow).SprintFunc()(command),
+				color.New(color.FgRed).SprintFunc()("Error:"),
+				err,
+				color.New(color.FgRed).SprintFunc()("Output:"),
+				string(output),
+			)
+
+			fmt.Println(errorMessage)
+
+			return fmt.Errorf("command failed: %v", err)
+		}
 	}
+
+	s.Stop()
+
+	checkMark := color.New(color.FgGreen).SprintFunc()("√")
+	fmt.Printf("%s %s\n", checkMark, completeMsg)
 
 	return nil
 }

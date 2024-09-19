@@ -5,6 +5,7 @@ go 1.23
 toolchain go1.23.1
 
 require (
+	github.com/briandowns/spinner v1.23.1
 	github.com/fatih/color v1.17.0
 	github.com/pkg/sftp v1.13.6
 	github.com/spf13/cobra v1.8.1
