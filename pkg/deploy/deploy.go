@@ -9,7 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/yarlson/aerie/internal/ssh"
+	"github.com/yarlson/aerie/pkg/ssh"
 	"github.com/yarlson/aerie/pkg/utils"
 )
 

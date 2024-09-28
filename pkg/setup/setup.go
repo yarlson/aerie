@@ -9,7 +9,7 @@ import (
 	gssh "golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 
-	"github.com/yarlson/aerie/internal/ssh"
+	"github.com/yarlson/aerie/pkg/ssh"
 	"github.com/yarlson/aerie/pkg/utils"
 )
 

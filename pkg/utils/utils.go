@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yarlson/aerie/internal/ssh"
+	"github.com/yarlson/aerie/pkg/ssh"
 )
 
 // sshKeyPath is used only for testing purposes
