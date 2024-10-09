@@ -10,7 +10,6 @@ import (
 	"golang.org/x/term"
 
 	"github.com/yarlson/aerie/pkg/ssh"
-	"github.com/yarlson/aerie/pkg/utils"
 )
 
 var (
@@ -29,7 +28,7 @@ func RunSetup(cmd *cobra.Command, args []string) {
 	info("Starting server provisioning process...")
 
 	// Establish SSH connection to the server
-	client, rootKey, e := utils.FindKeyAndConnectWithUser(host, "root", rootKeyPath)
+	client, rootKey, e := ssh.FindKeyAndConnectWithUser(host, "root", rootKeyPath)
 	if e != nil {
 		errPrintln("Failed to find a suitable SSH key and connect to the server:", e)
 		return
@@ -37,7 +36,7 @@ func RunSetup(cmd *cobra.Command, args []string) {
 	defer client.Close()
 	success("SSH connection to the server established.")
 
-	userKey, e := utils.FindSSHKey(sshKeyPath)
+	userKey, e := ssh.FindSSHKey(sshKeyPath)
 	if e != nil {
 		warning("Failed to find user SSH key. Will use root key for the new user on the server.")
 		userKey = rootKey

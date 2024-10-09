@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/yarlson/aerie/pkg/ssh"
 
 	"github.com/yarlson/aerie/pkg/deployment"
 	"github.com/yarlson/aerie/pkg/logfmt"
-	"github.com/yarlson/aerie/pkg/utils"
 )
 
 var (
@@ -37,7 +37,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	// Connect to the server
 	logfmt.Info("Connecting to the server...")
-	client, _, err := utils.FindKeyAndConnectWithUser(host, user, sshKeyPath)
+	client, _, err := ssh.FindKeyAndConnectWithUser(host, user, sshKeyPath)
 	if err != nil {
 		logfmt.ErrPrintln("Failed to connect to the server:", err)
 		return
