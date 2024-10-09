@@ -39,19 +39,19 @@ func ConnectWithUser(host, user string, key []byte) (*Client, error) {
 	return &Client{client}, nil
 }
 
-func (c *Client) RunCommand(command string) error {
+func (c *Client) RunCommand(command string) ([]byte, error) {
 	session, err := c.NewSession()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer session.Close()
 
 	output, err := session.CombinedOutput(command)
 	if err != nil {
-		return fmt.Errorf("command failed: %v\nOutput: %s", err, string(output))
+		return nil, fmt.Errorf("command failed: %v\nOutput: %s", err, string(output))
 	}
 
-	return nil
+	return output, nil
 }
 
 func (c *Client) RunCommandWithProgress(initialMsg, completeMsg string, commands []string) error {

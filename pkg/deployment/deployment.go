@@ -1,77 +1,51 @@
-package deploy
+package deployment
 
 import (
 	"fmt"
+	"github.com/yarlson/aerie/pkg/logfmt"
 	"os"
 	"os/exec"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-
 	"github.com/yarlson/aerie/pkg/ssh"
-	"github.com/yarlson/aerie/pkg/utils"
 )
 
-var (
-	info       = color.New(color.FgCyan).PrintlnFunc()
-	success    = color.New(color.FgGreen).PrintlnFunc()
-	warning    = color.New(color.FgYellow).PrintlnFunc()
-	errPrintln = color.New(color.FgRed).PrintlnFunc()
-)
+type Service struct {
+	client *ssh.Client
+}
 
-func RunDeploy(cmd *cobra.Command, args []string) {
-	// Read flags
-	host, _ := cmd.Flags().GetString("host")
-	user, _ := cmd.Flags().GetString("user")
-	sshKeyPath, _ := cmd.Flags().GetString("ssh-key")
-	appDir, _ := cmd.Flags().GetString("app-dir")
-
-	info("Starting deployment process...")
-
-	if host == "" || user == "" {
-		errPrintln("Host and user are required for deployment.")
-		return
+func NewService(client *ssh.Client) *Service {
+	return &Service{
+		client: client,
 	}
+}
 
+func (s *Service) Rollout(appDir string) error {
 	// Determine application version
 	version := time.Now().Format("20060102150405") // Use timestamp as version
 
 	// Build the Docker image
-	if err := buildDockerImage(version, appDir); err != nil {
-		errPrintln("Failed to build Docker image:", err)
-		return
+	if err := s.BuildDockerImage(version, appDir); err != nil {
+		return fmt.Errorf("failed to build Docker image: %v", err)
 	}
-	success("Docker image built successfully.")
-
-	// Connect to the server
-	info("Connecting to the server...")
-	client, _, err := utils.FindKeyAndConnectWithUser(host, user, sshKeyPath)
-	if err != nil {
-		errPrintln("Failed to connect to the server:", err)
-		return
-	}
-	defer client.Close()
-
-	success("SSH connection to the server established.")
+	logfmt.Success("Docker image built successfully.")
 
 	// Transfer the Docker image to the server
-	if err := transferDockerImage(client, version); err != nil {
-		errPrintln("Failed to transfer Docker image to the server:", err)
-		return
+	if err := s.TransferDockerImage(version); err != nil {
+		return fmt.Errorf("failed to transfer Docker image to the server: %v", err)
 	}
-	success("Docker image transferred to the server.")
+	logfmt.Success("Docker image transferred to the server.")
 
 	// Run Docker Compose commands on the server to deploy the new version
-	if err := deployOnServer(client, version); err != nil {
-		errPrintln("Failed to deploy on the server:", err)
-		return
+	if err := s.DeployOnServer(version); err != nil {
+		return fmt.Errorf("failed to deploy on the server: %v", err)
 	}
-	success("Deployment completed successfully.")
+
+	return nil
 }
 
-func buildDockerImage(version, appDir string) error {
-	info("Building Docker image...")
+func (s *Service) BuildDockerImage(version, appDir string) error {
+	logfmt.Info("Building Docker image...")
 	imageTag := fmt.Sprintf("myapp-web:%s", version)
 	cmd := exec.Command("docker", "build", "-t", imageTag, appDir)
 	cmd.Stdout = os.Stdout
@@ -79,9 +53,9 @@ func buildDockerImage(version, appDir string) error {
 	return cmd.Run()
 }
 
-func transferDockerImage(client *ssh.Client, version string) error {
+func (s *Service) TransferDockerImage(version string) error {
 	// Save the Docker image to a tar file
-	info("Saving Docker image to a tar file...")
+	logfmt.Info("Saving Docker image to a tar file...")
 	imageTag := fmt.Sprintf("myapp-web:%s", version)
 	tarFile := fmt.Sprintf("myapp-web-%s.tar", version)
 	cmd := exec.Command("docker", "save", "-o", tarFile, imageTag)
@@ -93,8 +67,8 @@ func transferDockerImage(client *ssh.Client, version string) error {
 	defer os.Remove(tarFile)
 
 	// Transfer the tar file to the server
-	info("Transferring Docker image to the server...")
-	if err := client.UploadFile(tarFile, tarFile); err != nil {
+	logfmt.Info("Transferring Docker image to the server...")
+	if err := s.client.UploadFile(tarFile, tarFile); err != nil {
 		return err
 	}
 
@@ -104,7 +78,7 @@ func transferDockerImage(client *ssh.Client, version string) error {
 		fmt.Sprintf("rm %s", tarFile), // Remove the tar file from the server
 	}
 
-	if err := client.RunCommandWithProgress(
+	if err := s.client.RunCommandWithProgress(
 		"Loading Docker image on the server...",
 		"Docker image loaded on the server.",
 		commands,
@@ -115,8 +89,8 @@ func transferDockerImage(client *ssh.Client, version string) error {
 	return nil
 }
 
-func deployOnServer(client *ssh.Client, version string) error {
-	info("Starting zero-downtime deployment on the server...")
+func (s *Service) DeployOnServer(version string) error {
+	logfmt.Info("Starting zero-downtime deployment on the server...")
 
 	// Commands to deploy the new version
 	appDir := "~/app" // Assuming the app is in ~/app on the server
@@ -126,7 +100,7 @@ func deployOnServer(client *ssh.Client, version string) error {
 		"docker compose up -d --no-deps --no-recreate --scale web=2",
 	}
 
-	if err := client.RunCommandWithProgress(
+	if err := s.client.RunCommandWithProgress(
 		"Deploying new version to the server...",
 		"New version deployed successfully.",
 		commands,
@@ -135,14 +109,14 @@ func deployOnServer(client *ssh.Client, version string) error {
 	}
 
 	// Wait for the new container to become healthy
-	if err := waitForServiceHealthy(client, "web", 120*time.Second); err != nil {
+	if err := s.waitForServiceHealthy("web", 120*time.Second); err != nil {
 		// Rollback
-		warning("Service did not become healthy, rolling back...")
+		logfmt.Warning("Service did not become healthy, rolling back...")
 		rollbackCommands := []string{
 			fmt.Sprintf("cd %s", appDir),
 			"docker compose up -d --no-deps --no-recreate --scale web=1",
 		}
-		if rollbackErr := client.RunCommandWithProgress(
+		if rollbackErr := s.client.RunCommandWithProgress(
 			"Rolling back deployment...",
 			"Rollback completed.",
 			rollbackCommands,
@@ -157,7 +131,7 @@ func deployOnServer(client *ssh.Client, version string) error {
 		fmt.Sprintf("cd %s", appDir),
 		"docker compose up -d --no-deps --no-recreate --scale web=1",
 	}
-	if err := client.RunCommandWithProgress(
+	if err := s.client.RunCommandWithProgress(
 		"Scaling down old version...",
 		"Old version scaled down.",
 		scaleDownCommands,
@@ -168,8 +142,8 @@ func deployOnServer(client *ssh.Client, version string) error {
 	return nil
 }
 
-func waitForServiceHealthy(client *ssh.Client, serviceName string, timeout time.Duration) error {
-	info("Waiting for the new container to become healthy...")
+func (s *Service) waitForServiceHealthy(serviceName string, timeout time.Duration) error {
+	logfmt.Info("Waiting for the new container to become healthy...")
 	start := time.Now()
 	for {
 		if time.Since(start) > timeout {
@@ -177,13 +151,13 @@ func waitForServiceHealthy(client *ssh.Client, serviceName string, timeout time.
 		}
 
 		cmd := fmt.Sprintf("docker inspect --format='{{.State.Health.Status}}' $(docker ps --filter 'name=%s' --format '{{.ID}}')", serviceName)
-		output, err := client.RunCommandOutput(cmd)
+		output, err := s.client.RunCommandOutput(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to check service health: %v", err)
 		}
 		if output == "healthy\n" || output == "healthy" {
 			// Service is healthy
-			success("New container is healthy.")
+			logfmt.Success("New container is healthy.")
 			return nil
 		}
 		// Sleep before retrying

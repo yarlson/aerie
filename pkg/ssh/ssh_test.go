@@ -67,7 +67,7 @@ func TestSSHClient(t *testing.T) {
 	defer client.Close()
 
 	// Run a command
-	err = client.RunCommand("echo 'Hello, World!'")
+	_, err = client.RunCommand("echo 'Hello, World!'")
 	assert.NoError(t, err)
 
 	// Upload a file
