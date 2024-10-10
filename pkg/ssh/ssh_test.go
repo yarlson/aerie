@@ -63,7 +63,7 @@ func TestSSHClient(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// Connect to the SSH server
-	client, err := ConnectWithUser(host+":"+port, "abc", key)
+	client, err := ConnectWithUser(host+":"+port, 0, "abc", key)
 	assert.NoError(t, err)
 	defer client.Close()
 

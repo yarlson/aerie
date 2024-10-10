@@ -37,7 +37,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	// Connect to the server
 	logfmt.Info("Connecting to the server...")
-	client, _, err := ssh.FindKeyAndConnectWithUser(host, user, sshKeyPath)
+	client, _, err := ssh.FindKeyAndConnectWithUser(host, 0, user, sshKeyPath)
 	if err != nil {
 		logfmt.ErrPrintln("Failed to connect to the server:", err)
 		return

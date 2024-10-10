@@ -17,7 +17,7 @@ type Client struct {
 	*ssh.Client
 }
 
-func ConnectWithUser(host, user string, key []byte) (*Client, error) {
+func ConnectWithUser(host string, port int, user string, key []byte) (*Client, error) {
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %v", err)
@@ -32,7 +32,7 @@ func ConnectWithUser(host, user string, key []byte) (*Client, error) {
 		Timeout:         10 * time.Second,
 	}
 
-	client, err := ssh.Dial("tcp", host, config)
+	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
@@ -165,13 +165,13 @@ func FindSSHKey(keyPath string) ([]byte, error) {
 }
 
 // FindKeyAndConnectWithUser finds an SSH key and establishes a connection
-func FindKeyAndConnectWithUser(host, user, keyPath string) (*Client, []byte, error) {
+func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*Client, []byte, error) {
 	key, err := FindSSHKey(keyPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find SSH key: %w", err)
 	}
 
-	client, err := ConnectWithUser(host, user, key)
+	client, err := ConnectWithUser(host, port, user, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to establish SSH connection: %w", err)
 	}

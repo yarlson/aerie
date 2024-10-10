@@ -21,6 +21,8 @@ var (
 
 func RunSetup(cmd *cobra.Command, args []string) {
 	host, _ := cmd.Flags().GetString("host")
+	port, _ := cmd.Flags().GetInt("port")
+	defaultUser, _ := cmd.Flags().GetString("default-user")
 	newUser, _ := cmd.Flags().GetString("user")
 	sshKeyPath, _ := cmd.Flags().GetString("ssh-key")
 	rootKeyPath, _ := cmd.Flags().GetString("root-key")
@@ -28,7 +30,7 @@ func RunSetup(cmd *cobra.Command, args []string) {
 	info("Starting server provisioning process...")
 
 	// Establish SSH connection to the server
-	client, rootKey, e := ssh.FindKeyAndConnectWithUser(host, "root", rootKeyPath)
+	client, rootKey, e := ssh.FindKeyAndConnectWithUser(host, port, defaultUser, rootKeyPath)
 	if e != nil {
 		errPrintln("Failed to find a suitable SSH key and connect to the server:", e)
 		return
@@ -46,7 +48,7 @@ func RunSetup(cmd *cobra.Command, args []string) {
 
 	// Prompt for new user password
 	fmt.Print("Enter password for new server user: ")
-	newUserPassword, e := term.ReadPassword(int(syscall.Stdin))
+	newUserPassword, e := term.ReadPassword(syscall.Stdin)
 	if e != nil {
 		errPrintln("\nFailed to read new server user password:", e)
 		return
@@ -75,8 +77,8 @@ func RunSetup(cmd *cobra.Command, args []string) {
 
 func createServerUser(client *ssh.Client, newUser, password string) error {
 	commands := []string{
-		fmt.Sprintf("adduser --gecos '' --disabled-password %s", newUser),
-		fmt.Sprintf("echo '%s:%s' | chpasswd", newUser, password),
+		fmt.Sprintf("sudo adduser --gecos '' --disabled-password %s", newUser),
+		fmt.Sprintf("echo '%s:%s' | sudo chpasswd", newUser, password),
 	}
 
 	if e := client.RunCommandWithProgress(
@@ -100,11 +102,11 @@ func setupServerSSHKey(client *ssh.Client, newUser string, userKey []byte) error
 	userPubKeyString := string(gssh.MarshalAuthorizedKey(userPubKey.PublicKey()))
 
 	commands := []string{
-		fmt.Sprintf("mkdir -p /home/%s/.ssh", newUser),
-		fmt.Sprintf("echo '%s' >> /home/%s/.ssh/authorized_keys", userPubKeyString, newUser),
-		fmt.Sprintf("chown -R %s:%s /home/%s/.ssh", newUser, newUser, newUser),
-		"chmod 700 /home/" + newUser + "/.ssh",
-		"chmod 600 /home/" + newUser + "/.ssh/authorized_keys",
+		fmt.Sprintf("sudo mkdir -p /home/%s/.ssh", newUser),
+		fmt.Sprintf("echo '%s' | sudo tee -a /home/%s/.ssh/authorized_keys", userPubKeyString, newUser),
+		fmt.Sprintf("sudo chown -R %s:%s /home/%s/.ssh", newUser, newUser, newUser),
+		fmt.Sprintf("sudo chmod 700 /home/%s/.ssh", newUser),
+		fmt.Sprintf("sudo chmod 600 /home/%s/.ssh/authorized_keys", newUser),
 	}
 
 	if e := client.RunCommandWithProgress(
@@ -121,12 +123,12 @@ func setupServerSSHKey(client *ssh.Client, newUser string, userKey []byte) error
 
 func installServerSoftware(client *ssh.Client) error {
 	commands := []string{
-		"apt-get update",
-		"apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
-		"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -",
-		"add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" -y",
-		"apt-get update",
-		"apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
+		"sudo apt-get update",
+		"sudo apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
+		"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -",
+		"sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" -y",
+		"sudo apt-get update",
+		"sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
 	}
 
 	if e := client.RunCommandWithProgress(
@@ -143,13 +145,13 @@ func installServerSoftware(client *ssh.Client) error {
 
 func configureServerFirewall(client *ssh.Client) error {
 	commands := []string{
-		"apt-get install -y ufw",
-		"ufw default deny incoming",
-		"ufw default allow outgoing",
-		"ufw allow 22/tcp",
-		"ufw allow 80/tcp",
-		"ufw allow 443/tcp",
-		"echo 'y' | ufw enable",
+		"sudo apt-get install -y ufw",
+		"sudo ufw default deny incoming",
+		"sudo ufw default allow outgoing",
+		"sudo ufw allow 22/tcp",
+		"sudo ufw allow 80/tcp",
+		"sudo ufw allow 443/tcp",
+		"echo 'y' | sudo ufw enable",
 	}
 
 	if e := client.RunCommandWithProgress(
