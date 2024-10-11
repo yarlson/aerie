@@ -56,19 +56,19 @@ func RunSetup(cmd *cobra.Command, args []string) {
 	success("\nServer user password received.")
 
 	// Perform provisioning steps
-	if e := createServerUser(client, newUser, string(newUserPassword)); e != nil {
-		return
-	}
-
-	if e := setupServerSSHKey(client, newUser, userKey); e != nil {
-		return
-	}
-
 	if e := installServerSoftware(client); e != nil {
 		return
 	}
 
 	if e := configureServerFirewall(client); e != nil {
+		return
+	}
+
+	if e := createServerUser(client, newUser, string(newUserPassword)); e != nil {
+		return
+	}
+
+	if e := setupServerSSHKey(client, newUser, userKey); e != nil {
 		return
 	}
 
@@ -79,14 +79,15 @@ func createServerUser(client *ssh.Client, newUser, password string) error {
 	commands := []string{
 		fmt.Sprintf("sudo adduser --gecos '' --disabled-password %s", newUser),
 		fmt.Sprintf("echo '%s:%s' | sudo chpasswd", newUser, password),
+		fmt.Sprintf("sudo usermod -aG docker %s", newUser),
 	}
 
 	if e := client.RunCommandWithProgress(
-		fmt.Sprintf("Creating user %s...", newUser),
-		fmt.Sprintf("User %s created successfully.", newUser),
+		fmt.Sprintf("Creating user %s and adding to Docker group...", newUser),
+		fmt.Sprintf("User %s created and added to Docker group successfully.", newUser),
 		commands,
 	); e != nil {
-		errPrintln("Failed to create user on the server:", e)
+		errPrintln("Failed to create user or add to Docker group on the server:", e)
 		return e
 	}
 
