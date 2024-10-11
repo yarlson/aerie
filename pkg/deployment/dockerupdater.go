@@ -27,6 +27,38 @@ func NewDockerUpdater(client *ssh.Client) *DockerUpdater {
 	return &DockerUpdater{client: client}
 }
 
+func (d *DockerUpdater) UpdateService(service, network string) error {
+	imageName, err := d.getImageName(service, network)
+	if err != nil {
+		return fmt.Errorf("failed to get image name for %s: %v", service, err)
+	}
+
+	if err := d.pullImage(imageName); err != nil {
+		return fmt.Errorf("failed to pull new image for %s: %v", service, err)
+	}
+
+	if err := d.startNewContainer(service, network); err != nil {
+		return fmt.Errorf("failed to start new container for %s: %v", service, err)
+	}
+
+	if err := d.performHealthChecks(service + newContainerSuffix); err != nil {
+		if _, rmErr := d.client.RunCommand(fmt.Sprintf("docker rm -f %s%s", service, newContainerSuffix)); rmErr != nil {
+			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", service, rmErr)
+		}
+		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", service, err)
+	}
+
+	if err := d.switchTraffic(service, network); err != nil {
+		return fmt.Errorf("failed to switch traffic for %s: %v", service, err)
+	}
+
+	if err := d.cleanup(service, network); err != nil {
+		return fmt.Errorf("failed to cleanup for %s: %v", service, err)
+	}
+
+	return nil
+}
+
 type containerInfo struct {
 	ID     string
 	Config struct {
@@ -188,36 +220,4 @@ func (d *DockerUpdater) pullImage(imageName string) error {
 	cmd := fmt.Sprintf("docker pull %s", imageName)
 	_, err := d.client.RunCommand(cmd)
 	return err
-}
-
-func (d *DockerUpdater) UpdateService(service, network string) error {
-	imageName, err := d.getImageName(service, network)
-	if err != nil {
-		return fmt.Errorf("failed to get image name for %s: %v", service, err)
-	}
-
-	if err := d.pullImage(imageName); err != nil {
-		return fmt.Errorf("failed to pull new image for %s: %v", service, err)
-	}
-
-	if err := d.startNewContainer(service, network); err != nil {
-		return fmt.Errorf("failed to start new container for %s: %v", service, err)
-	}
-
-	if err := d.performHealthChecks(service + newContainerSuffix); err != nil {
-		if _, rmErr := d.client.RunCommand(fmt.Sprintf("docker rm -f %s%s", service, newContainerSuffix)); rmErr != nil {
-			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", service, rmErr)
-		}
-		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", service, err)
-	}
-
-	if err := d.switchTraffic(service, network); err != nil {
-		return fmt.Errorf("failed to switch traffic for %s: %v", service, err)
-	}
-
-	if err := d.cleanup(service, network); err != nil {
-		return fmt.Errorf("failed to cleanup for %s: %v", service, err)
-	}
-
-	return nil
 }

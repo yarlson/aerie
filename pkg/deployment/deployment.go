@@ -2,10 +2,11 @@ package deployment
 
 import (
 	"fmt"
-	"github.com/yarlson/aerie/pkg/logfmt"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/yarlson/aerie/pkg/logfmt"
 
 	"github.com/yarlson/aerie/pkg/ssh"
 )
