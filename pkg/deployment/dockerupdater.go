@@ -12,6 +12,7 @@ import (
 const (
 	healthCheckRetries  = 5
 	healthCheckInterval = 10 * time.Second
+	newContainerSuffix  = "_new"
 )
 
 type SSHClient struct {
@@ -111,9 +112,9 @@ func (d *DockerUpdater) startNewContainer(service, network string) error {
 	}
 
 	runCmd := fmt.Sprintf(`docker run -d 
-		--name %[1]s_new 
+		--name %[1]s%[7]s
 		--network %[2]s 
-		--network-alias %[1]s_new 
+		--network-alias %[1]s%[7]s
 		-e %[3]s 
 		-v %[4]s 
 		%[5]s 
@@ -122,7 +123,7 @@ func (d *DockerUpdater) startNewContainer(service, network string) error {
 		--health-retries=3 
 		--health-timeout=2s 
 		%[6]s`,
-		service, network, envVars, volumeBinds, strings.Join(labels, " "), imageName)
+		service, network, envVars, volumeBinds, strings.Join(labels, " "), imageName, newContainerSuffix)
 
 	_, err = d.client.RunCommand(runCmd)
 	return err
@@ -141,7 +142,7 @@ func (d *DockerUpdater) performHealthChecks(container string) error {
 }
 
 func (d *DockerUpdater) switchTraffic(service, network string) error {
-	newContainer := service + "_new"
+	newContainer := service + newContainerSuffix
 	oldContainer, err := d.getContainerID(service, network)
 	if err != nil {
 		return fmt.Errorf("failed to get old container ID: %v", err)
@@ -171,7 +172,7 @@ func (d *DockerUpdater) cleanup(service, network string) error {
 	cmds := []string{
 		fmt.Sprintf("docker stop %s", oldContainer),
 		fmt.Sprintf("docker rm %s", oldContainer),
-		fmt.Sprintf("docker rename %s_new %s", service, service),
+		fmt.Sprintf("docker rename %[1]s%[2]s %[1]s", service, newContainerSuffix),
 	}
 
 	for _, cmd := range cmds {
@@ -203,8 +204,8 @@ func (d *DockerUpdater) UpdateService(service, network string) error {
 		return fmt.Errorf("failed to start new container for %s: %v", service, err)
 	}
 
-	if err := d.performHealthChecks(service + "_new"); err != nil {
-		if _, rmErr := d.client.RunCommand(fmt.Sprintf("docker rm -f %s_new", service)); rmErr != nil {
+	if err := d.performHealthChecks(service + newContainerSuffix); err != nil {
+		if _, rmErr := d.client.RunCommand(fmt.Sprintf("docker rm -f %s%s", service, newContainerSuffix)); rmErr != nil {
 			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", service, rmErr)
 		}
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", service, err)
