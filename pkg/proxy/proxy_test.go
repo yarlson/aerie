@@ -6,7 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"github.com/yarlson/aerie/config"
+
+	"github.com/yarlson/aerie/pkg/config"
 )
 
 type ProxyTestSuite struct {

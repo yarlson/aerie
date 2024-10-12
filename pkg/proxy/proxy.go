@@ -5,7 +5,7 @@ import (
 	"html/template"
 	"strings"
 
-	"github.com/yarlson/aerie/config"
+	"github.com/yarlson/aerie/pkg/config"
 )
 
 // GenerateNginxConfig generates an Nginx configuration based on the provided config.
