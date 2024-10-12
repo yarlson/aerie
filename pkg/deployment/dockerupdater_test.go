@@ -210,6 +210,24 @@ func (suite *DockerUpdaterTestSuite) TestStartNewContainer_Success() {
 		err = suite.updater.performHealthChecks(service + newContainerSuffix)
 		assert.NoError(suite.T(), err)
 	})
+
+	suite.Run("Switch Traffic", func() {
+		err = suite.updater.switchTraffic(service, network)
+		assert.NoError(suite.T(), err)
+
+		newContainerInfo, err := suite.updater.getContainerInfo(service, network)
+		assert.NoError(suite.T(), err)
+
+		assert.Contains(suite.T(), newContainerInfo.NetworkSettings.Networks, network)
+
+		networkAliases := newContainerInfo.NetworkSettings.Networks[network].Aliases
+		assert.Contains(suite.T(), networkAliases, service)
+
+		// Verify old container is no longer in the network
+		oldContainerID, err := suite.updater.getContainerID(service+newContainerSuffix, network)
+		assert.Error(suite.T(), err)
+		assert.Empty(suite.T(), oldContainerID)
+	})
 }
 
 func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentService() {
