@@ -11,9 +11,7 @@ import (
 )
 
 const (
-	healthCheckRetries  = 5
-	healthCheckInterval = 10 * time.Second
-	newContainerSuffix  = "_new"
+	newContainerSuffix = "_new"
 )
 
 type Executor interface {
@@ -43,7 +41,7 @@ func (d *Updater) UpdateService(service *config.Service, network string) error {
 		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
 
-	if err := d.performHealthChecks(svcName + newContainerSuffix); err != nil {
+	if err := d.performHealthChecks(svcName+newContainerSuffix, service.HealthCheck); err != nil {
 		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", svcName+newContainerSuffix); err != nil {
 			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", svcName, err)
 		}
@@ -64,15 +62,7 @@ func (d *Updater) UpdateService(service *config.Service, network string) error {
 type containerInfo struct {
 	ID     string
 	Config struct {
-		Image       string
-		Env         []string
-		Labels      map[string]string
-		HealthCheck struct {
-			Test     []string
-			Timeout  time.Duration
-			Retries  int
-			Interval time.Duration
-		}
+		Image string
 	}
 	NetworkSettings struct {
 		Networks map[string]struct{ Aliases []string }
@@ -137,11 +127,6 @@ func (d *Updater) startNewContainer(service *config.Service, network string) err
 		return fmt.Errorf("failed to get image name: %w", err)
 	}
 
-	info, err := d.getContainerInfo(svcName, network)
-	if err != nil {
-		return fmt.Errorf("failed to get container info: %w", err)
-	}
-
 	args := []string{"run", "-d", "--name", svcName + newContainerSuffix, "--network", network, "--network-alias", svcName + newContainerSuffix}
 
 	for _, env := range service.EnvVars {
@@ -152,13 +137,11 @@ func (d *Updater) startNewContainer(service *config.Service, network string) err
 		args = append(args, "-v", volume)
 	}
 
-	if len(info.Config.HealthCheck.Test) > 0 {
-		for _, test := range info.Config.HealthCheck.Test {
-			args = append(args, "--health-cmd", test)
-		}
-		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(info.Config.HealthCheck.Interval.Seconds())))
-		args = append(args, "--health-retries", fmt.Sprintf("%d", info.Config.HealthCheck.Retries))
-		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(info.Config.HealthCheck.Timeout.Seconds())))
+	if service.HealthCheck != nil {
+		args = append(args, "--health-cmd", fmt.Sprintf("curl -f http://localhost:%d/%s || exit 1", service.Port, service.HealthCheck.Path))
+		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
+		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
+		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
 	}
 
 	args = append(args, imageName)
@@ -167,13 +150,13 @@ func (d *Updater) startNewContainer(service *config.Service, network string) err
 	return err
 }
 
-func (d *Updater) performHealthChecks(container string) error {
-	for i := 0; i < healthCheckRetries; i++ {
+func (d *Updater) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
+	for i := 0; i < healthCheck.Retries; i++ {
 		output, err := d.runCommand(context.Background(), "docker", "inspect", "--format={{.State.Health.Status}}", container)
 		if err == nil && strings.TrimSpace(output) == "healthy" {
 			return nil
 		}
-		time.Sleep(healthCheckInterval)
+		time.Sleep(healthCheck.Interval)
 	}
 	return fmt.Errorf("container failed to become healthy")
 }

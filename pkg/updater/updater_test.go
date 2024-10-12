@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -182,6 +183,12 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 		Volumes: []string{
 			tmpDir + ":/container/path",
 		},
+		HealthCheck: &config.HealthCheck{
+			Path:     "/",
+			Interval: time.Second,
+			Timeout:  time.Second,
+			Retries:  3,
+		},
 	}
 
 	svsName := service.Name
@@ -221,7 +228,7 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 	})
 
 	suite.Run("Health Checks", func() {
-		err = suite.updater.performHealthChecks(svsName + newContainerSuffix)
+		err = suite.updater.performHealthChecks(svsName+newContainerSuffix, service.HealthCheck)
 		assert.NoError(suite.T(), err)
 	})
 
