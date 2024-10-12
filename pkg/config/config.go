@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"gopkg.in/yaml.v3"
@@ -22,10 +23,26 @@ type Project struct {
 }
 
 type Service struct {
-	Name   string  `yaml:"name" validate:"required"`
-	Image  string  `yaml:"image" validate:"required"`
-	Port   int     `yaml:"port" validate:"required,min=1,max=65535"`
-	Routes []Route `yaml:"routes" validate:"required,dive"`
+	Name        string      `yaml:"name" validate:"required"`
+	Image       string      `yaml:"image" validate:"required"`
+	Port        int         `yaml:"port" validate:"required,min=1,max=65535"`
+	HealthCheck HealthCheck `yaml:"health_check"`
+	Routes      []Route     `yaml:"routes" validate:"required,dive"`
+	Volumes     []string    `yaml:"volumes" validate:"dive,volume_reference"`
+
+	EnvVars []EnvVar
+}
+
+type EnvVar struct {
+	Name  string
+	Value string
+}
+
+type HealthCheck struct {
+	Path     string
+	Interval time.Duration
+	Timeout  time.Duration
+	Retries  int
 }
 
 type Route struct {

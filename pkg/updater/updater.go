@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/yarlson/aerie/pkg/config"
 	"io"
 	"strings"
 	"time"
@@ -27,33 +28,34 @@ func NewUpdater(executor Executor) *Updater {
 	return &Updater{executor: executor}
 }
 
-func (d *Updater) UpdateService(service, network string) error {
-	imageName, err := d.getImageName(service, network)
+func (d *Updater) UpdateService(service *config.Service, network string) error {
+	svcName := service.Name
+	imageName, err := d.getImageName(svcName, network)
 	if err != nil {
-		return fmt.Errorf("failed to get image name for %s: %v", service, err)
+		return fmt.Errorf("failed to get image name for %s: %v", svcName, err)
 	}
 
 	if err := d.pullImage(imageName); err != nil {
-		return fmt.Errorf("failed to pull new image for %s: %v", service, err)
+		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
 	if err := d.startNewContainer(service, network); err != nil {
-		return fmt.Errorf("failed to start new container for %s: %v", service, err)
+		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
 
-	if err := d.performHealthChecks(service + newContainerSuffix); err != nil {
-		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", service+newContainerSuffix); err != nil {
-			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", service, err)
+	if err := d.performHealthChecks(svcName + newContainerSuffix); err != nil {
+		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", svcName+newContainerSuffix); err != nil {
+			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", svcName, err)
 		}
-		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", service, err)
+		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", svcName, err)
 	}
 
-	if err := d.switchTraffic(service, network); err != nil {
-		return fmt.Errorf("failed to switch traffic for %s: %v", service, err)
+	if err := d.switchTraffic(svcName, network); err != nil {
+		return fmt.Errorf("failed to switch traffic for %s: %v", svcName, err)
 	}
 
-	if err := d.cleanup(service, network); err != nil {
-		return fmt.Errorf("failed to cleanup for %s: %v", service, err)
+	if err := d.cleanup(svcName, network); err != nil {
+		return fmt.Errorf("failed to cleanup for %s: %v", svcName, err)
 	}
 
 	return nil
@@ -128,29 +130,26 @@ func (d *Updater) getContainerInfo(service, network string) (*containerInfo, err
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (d *Updater) startNewContainer(service, network string) error {
-	imageName, err := d.getImageName(service, network)
+func (d *Updater) startNewContainer(service *config.Service, network string) error {
+	svcName := service.Name
+	imageName, err := d.getImageName(svcName, network)
 	if err != nil {
 		return fmt.Errorf("failed to get image name: %w", err)
 	}
 
-	info, err := d.getContainerInfo(service, network)
+	info, err := d.getContainerInfo(svcName, network)
 	if err != nil {
 		return fmt.Errorf("failed to get container info: %w", err)
 	}
 
-	args := []string{"run", "-d", "--name", service + newContainerSuffix, "--network", network, "--network-alias", service + newContainerSuffix}
+	args := []string{"run", "-d", "--name", svcName + newContainerSuffix, "--network", network, "--network-alias", svcName + newContainerSuffix}
 
-	for _, env := range info.Config.Env {
-		args = append(args, "-e", env)
+	for _, env := range service.EnvVars {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", env.Name, env.Value))
 	}
 
-	for _, bind := range info.HostConfig.Binds {
-		args = append(args, "-v", bind)
-	}
-
-	for k, v := range info.Config.Labels {
-		args = append(args, "--label", fmt.Sprintf("%s=%s", k, v))
+	for _, volume := range service.Volumes {
+		args = append(args, "-v", volume)
 	}
 
 	if len(info.Config.HealthCheck.Test) > 0 {

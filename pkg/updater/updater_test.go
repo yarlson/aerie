@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/yarlson/aerie/pkg/config"
 	"io"
 	"os"
 	"os/exec"
@@ -165,19 +166,35 @@ func (suite *UpdaterTestSuite) TestGetContainerId_NoContainerFound() {
 }
 
 func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
-	service := "nginx"
-	network := suite.network
 	tmpDir := suite.createTempDir()
 	defer os.RemoveAll(tmpDir)
 
-	suite.createInitialContainer(service, network, tmpDir)
-	defer suite.removeContainer(service)
+	service := &config.Service{
+		Name:  "nginx",
+		Image: "nginx:latest",
+		Port:  80,
+		EnvVars: []config.EnvVar{
+			{
+				Name:  "TEST_ENV",
+				Value: "test_value",
+			},
+		},
+		Volumes: []string{
+			tmpDir + ":/container/path",
+		},
+	}
+
+	svsName := service.Name
+	network := suite.network
+
+	suite.createInitialContainer(svsName, network, tmpDir)
+	defer suite.removeContainer(svsName)
 
 	err := suite.updater.startNewContainer(service, network)
 	assert.NoError(suite.T(), err)
-	defer suite.removeContainer(service + newContainerSuffix)
+	defer suite.removeContainer(svsName + newContainerSuffix)
 
-	containerInfo := suite.inspectContainer(service + newContainerSuffix)
+	containerInfo := suite.inspectContainer(svsName + newContainerSuffix)
 
 	suite.Run("Container State and Config", func() {
 		assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
@@ -195,56 +212,55 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 		assert.Contains(suite.T(), binds, tmpDir+":/container/path")
 	})
 
-	suite.Run("Labels", func() {
-		labels := containerInfo["Config"].(map[string]interface{})["Labels"].(map[string]interface{})
-		assert.Equal(suite.T(), "test_label", labels["com.example.label"])
-	})
-
 	suite.Run("Network Aliases", func() {
 		networkSettings := containerInfo["NetworkSettings"].(map[string]interface{})
 		networks := networkSettings["Networks"].(map[string]interface{})
 		networkInfo := networks[network].(map[string]interface{})
 		aliases := networkInfo["Aliases"].([]interface{})
-		assert.Contains(suite.T(), aliases, service+newContainerSuffix)
+		assert.Contains(suite.T(), aliases, svsName+newContainerSuffix)
 	})
 
 	suite.Run("Health Checks", func() {
-		err = suite.updater.performHealthChecks(service + newContainerSuffix)
+		err = suite.updater.performHealthChecks(svsName + newContainerSuffix)
 		assert.NoError(suite.T(), err)
 	})
 
 	suite.Run("Switch Traffic", func() {
-		err = suite.updater.switchTraffic(service, network)
+		err = suite.updater.switchTraffic(svsName, network)
 		assert.NoError(suite.T(), err)
 
-		newContainerInfo, err := suite.updater.getContainerInfo(service, network)
+		newContainerInfo, err := suite.updater.getContainerInfo(svsName, network)
 		assert.NoError(suite.T(), err)
 
 		assert.Contains(suite.T(), newContainerInfo.NetworkSettings.Networks, network)
 
 		networkAliases := newContainerInfo.NetworkSettings.Networks[network].Aliases
-		assert.Contains(suite.T(), networkAliases, service)
+		assert.Contains(suite.T(), networkAliases, svsName)
 
 		// Verify old container is no longer in the network
-		oldContainerID, err := suite.updater.getContainerID(service+newContainerSuffix, network)
+		oldContainerID, err := suite.updater.getContainerID(svsName+newContainerSuffix, network)
 		assert.Error(suite.T(), err)
 		assert.Empty(suite.T(), oldContainerID)
 	})
 
 	suite.Run("Cleanup", func() {
-		err := suite.updater.cleanup(service, network)
+		err := suite.updater.cleanup(svsName, network)
 		assert.NoError(suite.T(), err)
 
-		output, err := suite.updater.runCommand(context.Background(), "docker", "ps", "-a", "--filter", fmt.Sprintf("name=%s", service))
+		output, err := suite.updater.runCommand(context.Background(), "docker", "ps", "-a", "--filter", fmt.Sprintf("name=%s", svsName))
 		assert.NoError(suite.T(), err)
-		assert.NotContains(suite.T(), output, service+newContainerSuffix)
+		assert.NotContains(suite.T(), output, svsName+newContainerSuffix)
 
-		assert.Contains(suite.T(), output, service)
+		assert.Contains(suite.T(), output, svsName)
 	})
 }
 
 func (suite *UpdaterTestSuite) TestStartNewContainer_NonExistentService() {
-	service := "non-existent-service"
+	service := &config.Service{
+		Name:  "non-existent-service",
+		Image: "nginx:latest",
+		Port:  80,
+	}
 	network := suite.network
 
 	err := suite.updater.startNewContainer(service, network)
@@ -253,7 +269,11 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_NonExistentService() {
 }
 
 func (suite *UpdaterTestSuite) TestStartNewContainer_NonExistentNetwork() {
-	service := "nginx"
+	service := &config.Service{
+		Name:  "nginx",
+		Image: "nginx:latest",
+		Port:  80,
+	}
 	network := "non-existent-network"
 
 	err := suite.updater.startNewContainer(service, network)

@@ -170,10 +170,10 @@ project:
 services:
   - name: "web"
     image: "nginx:latest"
+    port: 80
     routes:
       - path: "/"
         strip_prefix: true
-        port: 80
 storages:
   - name: "db"
     image: "postgres:13"

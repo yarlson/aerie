@@ -7,6 +7,11 @@ services:
   - name: my-app
     image: my-app:latest
     port: 80
+    health_check:
+      path: /
+      interval: 10s
+      timeout: 5s
+      retries: 3
     routes:
       - path: /
         strip_prefix: false
