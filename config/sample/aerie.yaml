@@ -6,10 +6,10 @@ project:
 services:
   - name: my-app
     image: my-app:latest
+    port: 80
     routes:
       - path: /
         strip_prefix: false
-        port: 80
 
 storages:
   - name: my-app-storage

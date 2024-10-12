@@ -24,13 +24,13 @@ type Project struct {
 type Service struct {
 	Name   string  `yaml:"name" validate:"required"`
 	Image  string  `yaml:"image" validate:"required"`
+	Port   int     `yaml:"port" validate:"required,min=1,max=65535"`
 	Routes []Route `yaml:"routes" validate:"required,dive"`
 }
 
 type Route struct {
 	PathPrefix  string `yaml:"path" validate:"required"`
 	StripPrefix bool   `yaml:"strip_prefix"`
-	Port        int    `yaml:"port" validate:"required,min=1,max=65535"`
 }
 
 type Storage struct {
