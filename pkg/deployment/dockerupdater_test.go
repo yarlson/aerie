@@ -8,6 +8,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"io"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -70,6 +71,7 @@ func (suite *DockerUpdaterTestSuite) TearDownSuite() {
 	if suite.container != nil {
 		suite.Require().NoError(suite.container.Terminate(suite.ctx))
 	}
+	_ = exec.Command("docker", "network", "rm", suite.network).Run()
 }
 
 func (suite *DockerUpdaterTestSuite) SetupTest() {
@@ -117,4 +119,39 @@ func (suite *DockerUpdaterTestSuite) TestGetContainerId_NoContainerFound() {
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "no container found with alias non-existent-service in network non-existent-network")
 	assert.Empty(suite.T(), containerID)
+}
+
+func (suite *DockerUpdaterTestSuite) TestStartNewContainer_Success() {
+	service := "nginx"
+	network := suite.network
+
+	err := suite.updater.startNewContainer(service, network)
+	assert.NoError(suite.T(), err)
+
+	// Verify that the new container is running
+	cmd := exec.Command("docker", "ps", "-q", "-f", "name="+service+newContainerSuffix)
+	output, err := cmd.Output()
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), strings.TrimSpace(string(output)))
+
+	// Clean up the new container
+	_ = exec.Command("docker", "rm", "-f", service+newContainerSuffix).Run()
+}
+
+func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentService() {
+	service := "non-existent-service"
+	network := suite.network
+
+	err := suite.updater.startNewContainer(service, network)
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "failed to get image name")
+}
+
+func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentNetwork() {
+	service := "nginx"
+	network := "non-existent-network"
+
+	err := suite.updater.startNewContainer(service, network)
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "failed to get image name")
 }
