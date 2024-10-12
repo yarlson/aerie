@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -227,6 +228,17 @@ func (suite *DockerUpdaterTestSuite) TestStartNewContainer_Success() {
 		oldContainerID, err := suite.updater.getContainerID(service+newContainerSuffix, network)
 		assert.Error(suite.T(), err)
 		assert.Empty(suite.T(), oldContainerID)
+	})
+
+	suite.Run("Cleanup", func() {
+		err := suite.updater.cleanup(service, network)
+		assert.NoError(suite.T(), err)
+
+		output, err := suite.updater.runCommand(context.Background(), "docker", "ps", "-a", "--filter", fmt.Sprintf("name=%s", service))
+		assert.NoError(suite.T(), err)
+		assert.NotContains(suite.T(), output, service+newContainerSuffix)
+
+		assert.Contains(suite.T(), output, service)
 	})
 }
 
