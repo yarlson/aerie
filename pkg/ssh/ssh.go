@@ -1,15 +1,16 @@
 package ssh
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
-	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -40,19 +41,48 @@ func ConnectWithUser(host string, port int, user string, key []byte) (*Client, e
 	return &Client{client}, nil
 }
 
-func (c *Client) RunCommand(command string) ([]byte, error) {
+func (c *Client) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
 	session, err := c.NewSession()
 	if err != nil {
-		return nil, err
-	}
-	defer session.Close()
-
-	output, err := session.CombinedOutput(command)
-	if err != nil {
-		return nil, fmt.Errorf("command failed: %v\nOutput: %s", err, string(output))
+		return nil, fmt.Errorf("unable to create session: %v", err)
 	}
 
-	return output, nil
+	fullCommand := command
+	if len(args) > 0 {
+		fullCommand += " " + strings.Join(args, " ")
+	}
+
+	pr, pw := io.Pipe()
+
+	go func() {
+		defer pw.Close()
+		defer session.Close()
+
+		session.Stdout = pw
+		session.Stderr = pw
+
+		if err := session.Start(fullCommand); err != nil {
+			_ = pw.CloseWithError(fmt.Errorf("failed to start command: %v", err))
+			return
+		}
+
+		done := make(chan error, 1)
+		go func() {
+			done <- session.Wait()
+		}()
+
+		select {
+		case <-ctx.Done():
+			_ = session.Signal(ssh.SIGTERM)
+			_ = pw.CloseWithError(ctx.Err())
+		case err := <-done:
+			if err != nil {
+				_ = pw.CloseWithError(fmt.Errorf("command failed: %v", err))
+			}
+		}
+	}()
+
+	return pr, nil
 }
 
 func (c *Client) RunCommandWithProgress(initialMsg, completeMsg string, commands []string) error {
@@ -110,32 +140,6 @@ func (c *Client) RunCommandOutput(command string) (string, error) {
 	}
 
 	return string(output), nil
-}
-
-func (c *Client) UploadFile(localPath, remotePath string) error {
-	sftpClient, err := sftp.NewClient(c.Client)
-	if err != nil {
-		return fmt.Errorf("failed to create sftp client: %v", err)
-	}
-	defer sftpClient.Close()
-
-	srcFile, err := os.Open(localPath)
-	if err != nil {
-		return fmt.Errorf("failed to open local file: %v", err)
-	}
-	defer srcFile.Close()
-
-	dstFile, err := sftpClient.Create(remotePath)
-	if err != nil {
-		return fmt.Errorf("failed to create remote file: %v", err)
-	}
-	defer dstFile.Close()
-
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("failed to copy file: %v", err)
-	}
-
-	return nil
 }
 
 // sshKeyPath is used only for testing purposes

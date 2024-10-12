@@ -1,8 +1,10 @@
 package deployment
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -14,10 +16,6 @@ const (
 	healthCheckInterval = 10 * time.Second
 	newContainerSuffix  = "_new"
 )
-
-type SSHClient struct {
-	*ssh.Client
-}
 
 type DockerUpdater struct {
 	client *ssh.Client
@@ -42,8 +40,8 @@ func (d *DockerUpdater) UpdateService(service, network string) error {
 	}
 
 	if err := d.performHealthChecks(service + newContainerSuffix); err != nil {
-		if _, rmErr := d.client.RunCommand(fmt.Sprintf("docker rm -f %s%s", service, newContainerSuffix)); rmErr != nil {
-			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", service, rmErr)
+		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", service+newContainerSuffix); err != nil {
+			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", service, err)
 		}
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", service, err)
 	}
@@ -93,22 +91,20 @@ func (d *DockerUpdater) getContainerID(service, network string) (string, error) 
 }
 
 func (d *DockerUpdater) getContainerInfo(service, network string) (*containerInfo, error) {
-	cmd := fmt.Sprintf("docker ps -q --filter network=%s", network)
-	output, err := d.client.RunCommand(cmd)
+	output, err := d.runCommand(context.Background(), "docker", "ps", "-q", "--filter", fmt.Sprintf("network=%s", network))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container IDs: %w", err)
 	}
 
-	containerIDs := strings.Fields(string(output))
+	containerIDs := strings.Fields(output)
 	for _, cid := range containerIDs {
-		cmd := fmt.Sprintf("docker inspect %s", cid)
-		inspectOutput, err := d.client.RunCommand(cmd)
+		inspectOutput, err := d.runCommand(context.Background(), "docker", "inspect", cid)
 		if err != nil {
 			continue
 		}
 
 		var containerInfos []containerInfo
-		if err := json.Unmarshal(inspectOutput, &containerInfos); err != nil || len(containerInfos) == 0 {
+		if err := json.Unmarshal([]byte(inspectOutput), &containerInfos); err != nil || len(containerInfos) == 0 {
 			continue
 		}
 
@@ -135,37 +131,36 @@ func (d *DockerUpdater) startNewContainer(service, network string) error {
 		return fmt.Errorf("failed to get container info: %w", err)
 	}
 
-	envVars := strings.Join(info.Config.Env, " -e ")
-	volumeBinds := strings.Join(info.HostConfig.Binds, " -v ")
+	args := []string{"run", "-d", "--name", service + newContainerSuffix, "--network", network, "--network-alias", service + newContainerSuffix}
 
-	var labels []string
-	for k, v := range info.Config.Labels {
-		labels = append(labels, fmt.Sprintf("--label %s=%s", k, v))
+	for _, env := range info.Config.Env {
+		args = append(args, "-e", env)
 	}
 
-	runCmd := fmt.Sprintf(`docker run -d 
-		--name %[1]s%[7]s
-		--network %[2]s 
-		--network-alias %[1]s%[7]s
-		-e %[3]s 
-		-v %[4]s 
-		%[5]s 
-		--health-cmd "curl -f http://localhost:8080/health || exit 1" 
-		--health-interval=5s 
-		--health-retries=3 
-		--health-timeout=2s 
-		%[6]s`,
-		service, network, envVars, volumeBinds, strings.Join(labels, " "), imageName, newContainerSuffix)
+	for _, bind := range info.HostConfig.Binds {
+		args = append(args, "-v", bind)
+	}
 
-	_, err = d.client.RunCommand(runCmd)
+	for k, v := range info.Config.Labels {
+		args = append(args, "--label", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	args = append(args,
+		"--health-cmd", "curl -f http://localhost:8080/health || exit 1",
+		"--health-interval=5s",
+		"--health-retries=3",
+		"--health-timeout=2s",
+		imageName,
+	)
+
+	_, err = d.runCommand(context.Background(), "docker", args...)
 	return err
 }
 
 func (d *DockerUpdater) performHealthChecks(container string) error {
 	for i := 0; i < healthCheckRetries; i++ {
-		cmd := fmt.Sprintf("docker inspect --format='{{.State.Health.Status}}' %s", container)
-		output, err := d.client.RunCommand(cmd)
-		if err == nil && strings.TrimSpace(string(output)) == "healthy" {
+		output, err := d.runCommand(context.Background(), "docker", "inspect", "--format={{.State.Health.Status}}", container)
+		if err == nil && strings.TrimSpace(output) == "healthy" {
 			return nil
 		}
 		time.Sleep(healthCheckInterval)
@@ -180,15 +175,15 @@ func (d *DockerUpdater) switchTraffic(service, network string) error {
 		return fmt.Errorf("failed to get old container ID: %v", err)
 	}
 
-	cmds := []string{
-		fmt.Sprintf("docker network disconnect %s %s", network, newContainer),
-		fmt.Sprintf("docker network connect --alias %s %s %s", service, network, newContainer),
-		fmt.Sprintf("docker network disconnect %s %s", network, oldContainer),
+	cmds := [][]string{
+		{"docker", "network", "disconnect", network, newContainer},
+		{"docker", "network", "connect", "--alias", service, network, newContainer},
+		{"docker", "network", "disconnect", network, oldContainer},
 	}
 
 	for _, cmd := range cmds {
-		if _, err := d.client.RunCommand(cmd); err != nil {
-			return fmt.Errorf("failed to execute command '%s': %v", cmd, err)
+		if _, err := d.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+			return fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
 		}
 	}
 
@@ -201,15 +196,15 @@ func (d *DockerUpdater) cleanup(service, network string) error {
 		return fmt.Errorf("failed to get old container ID: %v", err)
 	}
 
-	cmds := []string{
-		fmt.Sprintf("docker stop %s", oldContainer),
-		fmt.Sprintf("docker rm %s", oldContainer),
-		fmt.Sprintf("docker rename %[1]s%[2]s %[1]s", service, newContainerSuffix),
+	cmds := [][]string{
+		{"docker", "stop", oldContainer},
+		{"docker", "rm", oldContainer},
+		{"docker", "rename", service + newContainerSuffix, service},
 	}
 
 	for _, cmd := range cmds {
-		if _, err := d.client.RunCommand(cmd); err != nil {
-			return fmt.Errorf("failed to execute command '%s': %v", cmd, err)
+		if _, err := d.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+			return fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
 		}
 	}
 
@@ -217,7 +212,22 @@ func (d *DockerUpdater) cleanup(service, network string) error {
 }
 
 func (d *DockerUpdater) pullImage(imageName string) error {
-	cmd := fmt.Sprintf("docker pull %s", imageName)
-	_, err := d.client.RunCommand(cmd)
+	_, err := d.runCommand(context.Background(), "docker", "pull", imageName)
 	return err
+}
+
+// Helper function to run commands and read output
+func (d *DockerUpdater) runCommand(ctx context.Context, command string, args ...string) (string, error) {
+	output, err := d.client.RunCommand(ctx, command, args...)
+	if err != nil {
+		return "", err
+	}
+
+	var outputBuilder strings.Builder
+	_, err = io.Copy(&outputBuilder, output)
+	if err != nil {
+		return "", fmt.Errorf("failed to read command output: %w", err)
+	}
+
+	return outputBuilder.String(), nil
 }

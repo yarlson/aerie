@@ -68,28 +68,8 @@ func TestSSHClient(t *testing.T) {
 	defer client.Close()
 
 	// Run a command
-	_, err = client.RunCommand("echo 'Hello, World!'")
+	_, err = client.RunCommand(context.Background(), "echo", "Hello, World!")
 	assert.NoError(t, err)
-
-	// Upload a file
-	localFilePath := "test_upload.txt"
-	remoteFilePath := "/tmp/test_upload.txt"
-
-	err = os.WriteFile(localFilePath, []byte("test data"), 0644)
-	assert.NoError(t, err)
-	defer os.Remove(localFilePath)
-
-	err = client.UploadFile(localFilePath, remoteFilePath)
-	assert.NoError(t, err)
-
-	// Verify the file was uploaded
-	session, err := client.NewSession()
-	assert.NoError(t, err)
-	defer session.Close()
-
-	output, err := session.CombinedOutput("cat " + remoteFilePath)
-	assert.NoError(t, err)
-	assert.Equal(t, "test data", string(output))
 }
 
 func generateSSHKeyPair() (privateKey string, publicKey string, err error) {

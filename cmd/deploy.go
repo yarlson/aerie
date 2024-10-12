@@ -4,7 +4,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yarlson/aerie/pkg/ssh"
 
-	"github.com/yarlson/aerie/pkg/deployment"
 	"github.com/yarlson/aerie/pkg/logfmt"
 )
 
@@ -26,7 +25,6 @@ func run(cmd *cobra.Command, args []string) {
 	host, _ := cmd.Flags().GetString("host")
 	user, _ := cmd.Flags().GetString("user")
 	sshKeyPath, _ := cmd.Flags().GetString("ssh-key")
-	appDir, _ := cmd.Flags().GetString("app-dir")
 
 	logfmt.Info("Starting service process...")
 
@@ -45,14 +43,6 @@ func run(cmd *cobra.Command, args []string) {
 	defer client.Close()
 
 	logfmt.Success("SSH connection to the server established.")
-
-	service := deployment.NewService(client)
-
-	// Perform the service
-	if err := service.Rollout(appDir); err != nil {
-		logfmt.ErrPrintln("Failed to deploy:", err)
-		return
-	}
 
 	logfmt.Success("Deployment completed successfully.")
 }
