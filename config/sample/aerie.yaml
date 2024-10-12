@@ -1,0 +1,19 @@
+project:
+  name: my-project
+  domain: my-project.example.com
+  email: my-project@example.com
+
+services:
+  - name: my-app
+    image: my-app:latest
+    path: .
+
+storages:
+  - name: my-app-storage
+    image: my-app-storage:latest
+    volumes:
+      - my-app-storage:/var/www/html/storage
+
+volumes:
+  - name: my-app-storage
+    path: /var/www/html/storage
