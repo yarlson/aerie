@@ -97,3 +97,24 @@ func (suite *DockerUpdaterTestSuite) TestGetImageName_NoContainerFound() {
 	assert.Contains(suite.T(), err.Error(), "no container found with alias non-existent-service in network non-existent-network")
 	assert.Empty(suite.T(), imageName)
 }
+
+func (suite *DockerUpdaterTestSuite) TestGetContainerId_Success() {
+	service := "nginx"
+	network := "aerie-test-network"
+
+	containerID, err := suite.updater.getContainerID(service, network)
+
+	assert.NoError(suite.T(), err)
+	assert.NotEmpty(suite.T(), containerID)
+}
+
+func (suite *DockerUpdaterTestSuite) TestGetContainerId_NoContainerFound() {
+	service := "non-existent-service"
+	network := "non-existent-network"
+
+	containerID, err := suite.updater.getContainerID(service, network)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "no container found with alias non-existent-service in network non-existent-network")
+	assert.Empty(suite.T(), containerID)
+}
