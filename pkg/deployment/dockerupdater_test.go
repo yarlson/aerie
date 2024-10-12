@@ -2,13 +2,14 @@ package deployment
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"io"
+	"os"
 	"os/exec"
-	"strings"
 	"testing"
 )
 
@@ -125,17 +126,55 @@ func (suite *DockerUpdaterTestSuite) TestStartNewContainer_Success() {
 	service := "nginx"
 	network := suite.network
 
-	err := suite.updater.startNewContainer(service, network)
+	tmpDir, err := os.MkdirTemp("", "docker-test")
 	assert.NoError(suite.T(), err)
+	defer os.RemoveAll(tmpDir)
 
-	// Verify that the new container is running
-	cmd := exec.Command("docker", "ps", "-q", "-f", "name="+service+newContainerSuffix)
+	err = exec.Command("docker", "run", "-d", "--name", service, "--network", network, "--network-alias", service, "--env", "TEST_ENV=test_value", "--label", "com.example.label=test_label", "--health-cmd", "curl -f http://localhost:8080/health || exit 1", "--health-interval=5s", "--health-retries=3", "--health-timeout=2s", "-v", tmpDir+":/container/path", "nginx:latest").Run()
+	assert.NoError(suite.T(), err)
+	defer func() {
+		_ = exec.Command("docker", "rm", "-f", service).Run()
+	}()
+
+	err = suite.updater.startNewContainer(service, network)
+	assert.NoError(suite.T(), err)
+	defer func() {
+		_ = exec.Command("docker", "rm", "-f", service+newContainerSuffix).Run()
+	}()
+
+	cmd := exec.Command("docker", "inspect", service+newContainerSuffix)
 	output, err := cmd.Output()
 	assert.NoError(suite.T(), err)
-	assert.NotEmpty(suite.T(), strings.TrimSpace(string(output)))
 
-	// Clean up the new container
-	_ = exec.Command("docker", "rm", "-f", service+newContainerSuffix).Run()
+	var containerInfo []struct {
+		State struct {
+			Status string `json:"Status"`
+		} `json:"State"`
+		Config struct {
+			Image  string            `json:"Image"`
+			Env    []string          `json:"Env"`
+			Labels map[string]string `json:"Labels"`
+		} `json:"Config"`
+		HostConfig struct {
+			NetworkMode string   `json:"NetworkMode"`
+			Binds       []string `json:"Binds"`
+		} `json:"HostConfig"`
+	}
+
+	err = json.Unmarshal(output, &containerInfo)
+	assert.NoError(suite.T(), err)
+	assert.Len(suite.T(), containerInfo, 1)
+
+	container := containerInfo[0]
+	assert.Equal(suite.T(), "running", container.State.Status)
+	assert.Contains(suite.T(), container.Config.Image, "nginx")
+	assert.Equal(suite.T(), network, container.HostConfig.NetworkMode)
+
+	assert.Contains(suite.T(), container.Config.Env, "TEST_ENV=test_value")
+
+	assert.Contains(suite.T(), container.HostConfig.Binds, tmpDir+":/container/path")
+
+	assert.Equal(suite.T(), "test_label", container.Config.Labels["com.example.label"])
 }
 
 func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentService() {
