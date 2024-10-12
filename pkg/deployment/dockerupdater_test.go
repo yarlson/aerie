@@ -93,7 +93,7 @@ func (suite *DockerUpdaterTestSuite) createInitialContainer(service, network, tm
 		"--network-alias", service,
 		"--env", "TEST_ENV=test_value",
 		"--label", "com.example.label=test_label",
-		"--health-cmd", "curl -f http://localhost:8080/health || exit 1",
+		"--health-cmd", "curl -f http://localhost/ || exit 1",
 		"--health-interval=5s",
 		"--health-retries=3",
 		"--health-timeout=2s",
@@ -177,18 +177,39 @@ func (suite *DockerUpdaterTestSuite) TestStartNewContainer_Success() {
 
 	containerInfo := suite.inspectContainer(service + newContainerSuffix)
 
-	assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
-	assert.Contains(suite.T(), containerInfo["Config"].(map[string]interface{})["Image"], "nginx")
-	assert.Equal(suite.T(), network, containerInfo["HostConfig"].(map[string]interface{})["NetworkMode"])
+	suite.Run("Container State and Config", func() {
+		assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
+		assert.Contains(suite.T(), containerInfo["Config"].(map[string]interface{})["Image"], "nginx")
+		assert.Equal(suite.T(), network, containerInfo["HostConfig"].(map[string]interface{})["NetworkMode"])
+	})
 
-	env := containerInfo["Config"].(map[string]interface{})["Env"].([]interface{})
-	assert.Contains(suite.T(), env, "TEST_ENV=test_value")
+	suite.Run("Environment Variables", func() {
+		env := containerInfo["Config"].(map[string]interface{})["Env"].([]interface{})
+		assert.Contains(suite.T(), env, "TEST_ENV=test_value")
+	})
 
-	binds := containerInfo["HostConfig"].(map[string]interface{})["Binds"].([]interface{})
-	assert.Contains(suite.T(), binds, tmpDir+":/container/path")
+	suite.Run("Volume Bindings", func() {
+		binds := containerInfo["HostConfig"].(map[string]interface{})["Binds"].([]interface{})
+		assert.Contains(suite.T(), binds, tmpDir+":/container/path")
+	})
 
-	labels := containerInfo["Config"].(map[string]interface{})["Labels"].(map[string]interface{})
-	assert.Equal(suite.T(), "test_label", labels["com.example.label"])
+	suite.Run("Labels", func() {
+		labels := containerInfo["Config"].(map[string]interface{})["Labels"].(map[string]interface{})
+		assert.Equal(suite.T(), "test_label", labels["com.example.label"])
+	})
+
+	suite.Run("Network Aliases", func() {
+		networkSettings := containerInfo["NetworkSettings"].(map[string]interface{})
+		networks := networkSettings["Networks"].(map[string]interface{})
+		networkInfo := networks[network].(map[string]interface{})
+		aliases := networkInfo["Aliases"].([]interface{})
+		assert.Contains(suite.T(), aliases, service+newContainerSuffix)
+	})
+
+	suite.Run("Health Checks", func() {
+		err = suite.updater.performHealthChecks(service + newContainerSuffix)
+		assert.NoError(suite.T(), err)
+	})
 }
 
 func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentService() {

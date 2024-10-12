@@ -62,9 +62,15 @@ func (d *DockerUpdater) UpdateService(service, network string) error {
 type containerInfo struct {
 	ID     string
 	Config struct {
-		Image  string
-		Env    []string
-		Labels map[string]string
+		Image       string
+		Env         []string
+		Labels      map[string]string
+		HealthCheck struct {
+			Test     []string
+			Timeout  time.Duration
+			Retries  int
+			Interval time.Duration
+		}
 	}
 	NetworkSettings struct {
 		Networks map[string]struct{ Aliases []string }
@@ -147,13 +153,16 @@ func (d *DockerUpdater) startNewContainer(service, network string) error {
 		args = append(args, "--label", fmt.Sprintf("%s=%s", k, v))
 	}
 
-	args = append(args,
-		"--health-cmd", "curl -f http://localhost:8080/health || exit 1",
-		"--health-interval=5s",
-		"--health-retries=3",
-		"--health-timeout=2s",
-		imageName,
-	)
+	if len(info.Config.HealthCheck.Test) > 0 {
+		for _, test := range info.Config.HealthCheck.Test {
+			args = append(args, "--health-cmd", test)
+		}
+		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(info.Config.HealthCheck.Interval.Seconds())))
+		args = append(args, "--health-retries", fmt.Sprintf("%d", info.Config.HealthCheck.Retries))
+		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(info.Config.HealthCheck.Timeout.Seconds())))
+	}
+
+	args = append(args, imageName)
 
 	_, err = d.runCommand(context.Background(), "docker", args...)
 	return err
