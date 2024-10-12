@@ -7,8 +7,6 @@ import (
 	"io"
 	"strings"
 	"time"
-
-	"github.com/yarlson/aerie/pkg/ssh"
 )
 
 const (
@@ -17,12 +15,16 @@ const (
 	newContainerSuffix  = "_new"
 )
 
-type DockerUpdater struct {
-	client *ssh.Client
+type Executor interface {
+	RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error)
 }
 
-func NewDockerUpdater(client *ssh.Client) *DockerUpdater {
-	return &DockerUpdater{client: client}
+type DockerUpdater struct {
+	executor Executor
+}
+
+func NewDockerUpdater(executor Executor) *DockerUpdater {
+	return &DockerUpdater{executor: executor}
 }
 
 func (d *DockerUpdater) UpdateService(service, network string) error {
@@ -218,7 +220,7 @@ func (d *DockerUpdater) pullImage(imageName string) error {
 
 // Helper function to run commands and read output
 func (d *DockerUpdater) runCommand(ctx context.Context, command string, args ...string) (string, error) {
-	output, err := d.client.RunCommand(ctx, command, args...)
+	output, err := d.executor.RunCommand(ctx, command, args...)
 	if err != nil {
 		return "", err
 	}
