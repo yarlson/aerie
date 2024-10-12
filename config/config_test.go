@@ -30,8 +30,20 @@ func (suite *ConfigTestSuite) TestParseConfig_Success() {
 	assert.Equal(suite.T(), "my-project.example.com", config.Project.Domain)
 	assert.Equal(suite.T(), "my-project@example.com", config.Project.Email)
 	assert.Len(suite.T(), config.Services, 1)
+	assert.Equal(suite.T(), "my-app", config.Services[0].Name)
+	assert.Equal(suite.T(), "my-app:latest", config.Services[0].Image)
+	assert.Len(suite.T(), config.Services[0].Routes, 1)
+	assert.Equal(suite.T(), "/", config.Services[0].Routes[0].PathPrefix)
+	assert.False(suite.T(), config.Services[0].Routes[0].StripPrefix)
+	assert.Equal(suite.T(), 80, config.Services[0].Routes[0].Port)
 	assert.Len(suite.T(), config.Storages, 1)
+	assert.Equal(suite.T(), "my-app-storage", config.Storages[0].Name)
+	assert.Equal(suite.T(), "my-app-storage:latest", config.Storages[0].Image)
+	assert.Len(suite.T(), config.Storages[0].Volumes, 1)
+	assert.Equal(suite.T(), "my-app-storage:/var/www/html/storage", config.Storages[0].Volumes[0])
 	assert.Len(suite.T(), config.Volumes, 1)
+	assert.Equal(suite.T(), "my-app-storage", config.Volumes[0].Name)
+	assert.Equal(suite.T(), "/var/www/html/storage", config.Volumes[0].Path)
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_InvalidYAML() {
@@ -43,7 +55,10 @@ project:
 services:
   - name: "web"
     image: "nginx:latest"
-    path: "/app/web"
+    routes:
+      - path: "/"
+        strip_prefix: true
+        port: 80
   - this is invalid YAML
 `)
 
@@ -62,10 +77,15 @@ project:
 services:
   - name: "web"
     image: "nginx:latest"
-    path: "/app/web"
+    routes:
+      - path: "/"
+        strip_prefix: true
+        port: 80
 storages:
   - name: "db"
     image: "postgres:13"
+    volumes:
+      - "db_data:/var/lib/postgresql/data"
 volumes:
   - name: "db_data"
     path: "/data/db"
@@ -88,7 +108,10 @@ project:
 services:
   - name: "web"
     image: "nginx:latest"
-    path: "/app/web"
+    routes:
+      - path: "/"
+        strip_prefix: true
+        port: 80
 storages:
   - name: "db"
     image: "postgres:13"
@@ -116,7 +139,10 @@ project:
 services:
   - name: "web"
     image: "nginx:latest"
-    path: "/app/web"
+    routes:
+      - path: "/"
+        strip_prefix: true
+        port: 80
 storages:
   - name: "db"
     image: "postgres:13"
@@ -144,7 +170,10 @@ project:
 services:
   - name: "web"
     image: "nginx:latest"
-    path: "/app/web"
+    routes:
+      - path: "/"
+        strip_prefix: true
+        port: 80
 storages:
   - name: "db"
     image: "postgres:13"
