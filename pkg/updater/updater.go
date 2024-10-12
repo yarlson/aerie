@@ -28,12 +28,8 @@ func NewUpdater(executor Executor) *Updater {
 
 func (d *Updater) UpdateService(service *config.Service, network string) error {
 	svcName := service.Name
-	imageName, err := d.getImageName(svcName, network)
-	if err != nil {
-		return fmt.Errorf("failed to get image name for %s: %v", svcName, err)
-	}
 
-	if err := d.pullImage(imageName); err != nil {
+	if err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
@@ -70,15 +66,6 @@ type containerInfo struct {
 	HostConfig struct {
 		Binds []string
 	}
-}
-
-func (d *Updater) getImageName(service, network string) (string, error) {
-	info, err := d.getContainerInfo(service, network)
-	if err != nil {
-		return "", fmt.Errorf("failed to get container info: %w", err)
-	}
-
-	return info.Config.Image, nil
 }
 
 func (d *Updater) getContainerID(service, network string) (string, error) {
@@ -122,10 +109,6 @@ func (d *Updater) getContainerInfo(service, network string) (*containerInfo, err
 
 func (d *Updater) startNewContainer(service *config.Service, network string) error {
 	svcName := service.Name
-	imageName, err := d.getImageName(svcName, network)
-	if err != nil {
-		return fmt.Errorf("failed to get image name: %w", err)
-	}
 
 	args := []string{"run", "-d", "--name", svcName + newContainerSuffix, "--network", network, "--network-alias", svcName + newContainerSuffix}
 
@@ -144,9 +127,9 @@ func (d *Updater) startNewContainer(service *config.Service, network string) err
 		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
 	}
 
-	args = append(args, imageName)
+	args = append(args, service.Image)
 
-	_, err = d.runCommand(context.Background(), "docker", args...)
+	_, err := d.runCommand(context.Background(), "docker", args...)
 	return err
 }
 

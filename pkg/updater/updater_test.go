@@ -124,27 +124,6 @@ func (suite *UpdaterTestSuite) inspectContainer(containerName string) map[string
 	return containerInfo[0]
 }
 
-func (suite *UpdaterTestSuite) TestGetImageName_Success() {
-	service := "nginx"
-	expectedImage := "nginx:latest"
-
-	imageName, err := suite.updater.getImageName(service, suite.network)
-
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), expectedImage, imageName)
-}
-
-func (suite *UpdaterTestSuite) TestGetImageName_NoContainerFound() {
-	service := "non-existent-service"
-	network := "non-existent-network"
-
-	imageName, err := suite.updater.getImageName(service, network)
-
-	assert.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "no container found with alias non-existent-service in network non-existent-network")
-	assert.Empty(suite.T(), imageName)
-}
-
 func (suite *UpdaterTestSuite) TestGetContainerId_Success() {
 	service := "nginx"
 	network := "aerie-test-network"
@@ -192,8 +171,7 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 	}
 
 	svsName := service.Name
-	network := suite.network
-
+	network := "aerie-test-network"
 	suite.createInitialContainer(svsName, network, tmpDir)
 	defer suite.removeContainer(svsName)
 
@@ -260,30 +238,4 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 
 		assert.Contains(suite.T(), output, svsName)
 	})
-}
-
-func (suite *UpdaterTestSuite) TestStartNewContainer_NonExistentService() {
-	service := &config.Service{
-		Name:  "non-existent-service",
-		Image: "nginx:latest",
-		Port:  80,
-	}
-	network := suite.network
-
-	err := suite.updater.startNewContainer(service, network)
-	assert.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "failed to get image name")
-}
-
-func (suite *UpdaterTestSuite) TestStartNewContainer_NonExistentNetwork() {
-	service := &config.Service{
-		Name:  "nginx",
-		Image: "nginx:latest",
-		Port:  80,
-	}
-	network := "non-existent-network"
-
-	err := suite.updater.startNewContainer(service, network)
-	assert.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "failed to get image name")
 }
