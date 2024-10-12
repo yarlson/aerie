@@ -19,15 +19,15 @@ type Executor interface {
 	RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error)
 }
 
-type DockerUpdater struct {
+type Updater struct {
 	executor Executor
 }
 
-func NewDockerUpdater(executor Executor) *DockerUpdater {
-	return &DockerUpdater{executor: executor}
+func NewUpdater(executor Executor) *Updater {
+	return &Updater{executor: executor}
 }
 
-func (d *DockerUpdater) UpdateService(service, network string) error {
+func (d *Updater) UpdateService(service, network string) error {
 	imageName, err := d.getImageName(service, network)
 	if err != nil {
 		return fmt.Errorf("failed to get image name for %s: %v", service, err)
@@ -80,7 +80,7 @@ type containerInfo struct {
 	}
 }
 
-func (d *DockerUpdater) getImageName(service, network string) (string, error) {
+func (d *Updater) getImageName(service, network string) (string, error) {
 	info, err := d.getContainerInfo(service, network)
 	if err != nil {
 		return "", fmt.Errorf("failed to get container info: %w", err)
@@ -89,7 +89,7 @@ func (d *DockerUpdater) getImageName(service, network string) (string, error) {
 	return info.Config.Image, nil
 }
 
-func (d *DockerUpdater) getContainerID(service, network string) (string, error) {
+func (d *Updater) getContainerID(service, network string) (string, error) {
 	info, err := d.getContainerInfo(service, network)
 	if err != nil {
 		return "", err
@@ -98,7 +98,7 @@ func (d *DockerUpdater) getContainerID(service, network string) (string, error) 
 	return info.ID, err
 }
 
-func (d *DockerUpdater) getContainerInfo(service, network string) (*containerInfo, error) {
+func (d *Updater) getContainerInfo(service, network string) (*containerInfo, error) {
 	output, err := d.runCommand(context.Background(), "docker", "ps", "-q", "--filter", fmt.Sprintf("network=%s", network))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container IDs: %w", err)
@@ -128,7 +128,7 @@ func (d *DockerUpdater) getContainerInfo(service, network string) (*containerInf
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (d *DockerUpdater) startNewContainer(service, network string) error {
+func (d *Updater) startNewContainer(service, network string) error {
 	imageName, err := d.getImageName(service, network)
 	if err != nil {
 		return fmt.Errorf("failed to get image name: %w", err)
@@ -168,7 +168,7 @@ func (d *DockerUpdater) startNewContainer(service, network string) error {
 	return err
 }
 
-func (d *DockerUpdater) performHealthChecks(container string) error {
+func (d *Updater) performHealthChecks(container string) error {
 	for i := 0; i < healthCheckRetries; i++ {
 		output, err := d.runCommand(context.Background(), "docker", "inspect", "--format={{.State.Health.Status}}", container)
 		if err == nil && strings.TrimSpace(output) == "healthy" {
@@ -179,7 +179,7 @@ func (d *DockerUpdater) performHealthChecks(container string) error {
 	return fmt.Errorf("container failed to become healthy")
 }
 
-func (d *DockerUpdater) switchTraffic(service, network string) error {
+func (d *Updater) switchTraffic(service, network string) error {
 	newContainer := service + newContainerSuffix
 	oldContainer, err := d.getContainerID(service, network)
 	if err != nil {
@@ -201,7 +201,7 @@ func (d *DockerUpdater) switchTraffic(service, network string) error {
 	return nil
 }
 
-func (d *DockerUpdater) cleanup(service, network string) error {
+func (d *Updater) cleanup(service, network string) error {
 	oldContainer, err := d.getContainerID(service, network)
 	if err != nil {
 		return fmt.Errorf("failed to get old container ID: %v", err)
@@ -222,13 +222,13 @@ func (d *DockerUpdater) cleanup(service, network string) error {
 	return nil
 }
 
-func (d *DockerUpdater) pullImage(imageName string) error {
+func (d *Updater) pullImage(imageName string) error {
 	_, err := d.runCommand(context.Background(), "docker", "pull", imageName)
 	return err
 }
 
 // Helper function to run commands and read output
-func (d *DockerUpdater) runCommand(ctx context.Context, command string, args ...string) (string, error) {
+func (d *Updater) runCommand(ctx context.Context, command string, args ...string) (string, error) {
 	output, err := d.executor.RunCommand(ctx, command, args...)
 	if err != nil {
 		return "", err

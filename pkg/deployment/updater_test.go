@@ -14,16 +14,16 @@ import (
 	"testing"
 )
 
-type DockerUpdaterTestSuite struct {
+type UpdaterTestSuite struct {
 	suite.Suite
 	ctx       context.Context
-	updater   *DockerUpdater
+	updater   *Updater
 	container testcontainers.Container
 	network   string
 }
 
-func TestDockerUpdaterSuite(t *testing.T) {
-	suite.Run(t, new(DockerUpdaterTestSuite))
+func TestUpdaterSuite(t *testing.T) {
+	suite.Run(t, new(UpdaterTestSuite))
 }
 
 type LocalExecutor struct{}
@@ -48,7 +48,7 @@ func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...
 	return combinedOutput, nil
 }
 
-func (suite *DockerUpdaterTestSuite) SetupSuite() {
+func (suite *UpdaterTestSuite) SetupSuite() {
 	suite.network = "aerie-test-network"
 	_ = exec.Command("docker", "network", "create", suite.network).Run()
 	suite.ctx = context.Background()
@@ -69,25 +69,25 @@ func (suite *DockerUpdaterTestSuite) SetupSuite() {
 	suite.container = container
 }
 
-func (suite *DockerUpdaterTestSuite) TearDownSuite() {
+func (suite *UpdaterTestSuite) TearDownSuite() {
 	if suite.container != nil {
 		suite.Require().NoError(suite.container.Terminate(suite.ctx))
 	}
 	_ = exec.Command("docker", "network", "rm", suite.network).Run()
 }
 
-func (suite *DockerUpdaterTestSuite) SetupTest() {
+func (suite *UpdaterTestSuite) SetupTest() {
 	executor := &LocalExecutor{}
-	suite.updater = NewDockerUpdater(executor)
+	suite.updater = NewUpdater(executor)
 }
 
-func (suite *DockerUpdaterTestSuite) createTempDir() string {
+func (suite *UpdaterTestSuite) createTempDir() string {
 	tmpDir, err := os.MkdirTemp("", "docker-test")
 	assert.NoError(suite.T(), err)
 	return tmpDir
 }
 
-func (suite *DockerUpdaterTestSuite) createInitialContainer(service, network, tmpDir string) {
+func (suite *UpdaterTestSuite) createInitialContainer(service, network, tmpDir string) {
 	cmd := exec.Command("docker", "run", "-d",
 		"--name", service,
 		"--network", network,
@@ -104,11 +104,11 @@ func (suite *DockerUpdaterTestSuite) createInitialContainer(service, network, tm
 	assert.NoError(suite.T(), err)
 }
 
-func (suite *DockerUpdaterTestSuite) removeContainer(containerName string) {
+func (suite *UpdaterTestSuite) removeContainer(containerName string) {
 	_ = exec.Command("docker", "rm", "-f", containerName).Run()
 }
 
-func (suite *DockerUpdaterTestSuite) inspectContainer(containerName string) map[string]interface{} {
+func (suite *UpdaterTestSuite) inspectContainer(containerName string) map[string]interface{} {
 	cmd := exec.Command("docker", "inspect", containerName)
 	output, err := cmd.Output()
 	assert.NoError(suite.T(), err)
@@ -121,7 +121,7 @@ func (suite *DockerUpdaterTestSuite) inspectContainer(containerName string) map[
 	return containerInfo[0]
 }
 
-func (suite *DockerUpdaterTestSuite) TestGetImageName_Success() {
+func (suite *UpdaterTestSuite) TestGetImageName_Success() {
 	service := "nginx"
 	expectedImage := "nginx:latest"
 
@@ -131,7 +131,7 @@ func (suite *DockerUpdaterTestSuite) TestGetImageName_Success() {
 	assert.Equal(suite.T(), expectedImage, imageName)
 }
 
-func (suite *DockerUpdaterTestSuite) TestGetImageName_NoContainerFound() {
+func (suite *UpdaterTestSuite) TestGetImageName_NoContainerFound() {
 	service := "non-existent-service"
 	network := "non-existent-network"
 
@@ -142,7 +142,7 @@ func (suite *DockerUpdaterTestSuite) TestGetImageName_NoContainerFound() {
 	assert.Empty(suite.T(), imageName)
 }
 
-func (suite *DockerUpdaterTestSuite) TestGetContainerId_Success() {
+func (suite *UpdaterTestSuite) TestGetContainerId_Success() {
 	service := "nginx"
 	network := "aerie-test-network"
 
@@ -152,7 +152,7 @@ func (suite *DockerUpdaterTestSuite) TestGetContainerId_Success() {
 	assert.NotEmpty(suite.T(), containerID)
 }
 
-func (suite *DockerUpdaterTestSuite) TestGetContainerId_NoContainerFound() {
+func (suite *UpdaterTestSuite) TestGetContainerId_NoContainerFound() {
 	service := "non-existent-service"
 	network := "non-existent-network"
 
@@ -163,7 +163,7 @@ func (suite *DockerUpdaterTestSuite) TestGetContainerId_NoContainerFound() {
 	assert.Empty(suite.T(), containerID)
 }
 
-func (suite *DockerUpdaterTestSuite) TestStartNewContainer_Success() {
+func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 	service := "nginx"
 	network := suite.network
 	tmpDir := suite.createTempDir()
@@ -242,7 +242,7 @@ func (suite *DockerUpdaterTestSuite) TestStartNewContainer_Success() {
 	})
 }
 
-func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentService() {
+func (suite *UpdaterTestSuite) TestStartNewContainer_NonExistentService() {
 	service := "non-existent-service"
 	network := suite.network
 
@@ -251,7 +251,7 @@ func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentService() 
 	assert.Contains(suite.T(), err.Error(), "failed to get image name")
 }
 
-func (suite *DockerUpdaterTestSuite) TestStartNewContainer_NonExistentNetwork() {
+func (suite *UpdaterTestSuite) TestStartNewContainer_NonExistentNetwork() {
 	service := "nginx"
 	network := "non-existent-network"
 
