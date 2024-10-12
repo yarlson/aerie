@@ -2,93 +2,98 @@ package deployment
 
 import (
 	"context"
-	"io"
-	"strings"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
+	"io"
+	"os/exec"
+	"testing"
 )
-
-type MockExecutor struct {
-	mock.Mock
-}
-
-func (m *MockExecutor) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
-	args = append([]string{command}, args...)
-	called := m.Called(ctx, args)
-	return strings.NewReader(called.String(0)), called.Error(1)
-}
 
 type DockerUpdaterTestSuite struct {
 	suite.Suite
-	updater *DockerUpdater
-	mock    *MockExecutor
-}
-
-func (suite *DockerUpdaterTestSuite) SetupTest() {
-	suite.mock = new(MockExecutor)
-	suite.updater = NewDockerUpdater(suite.mock)
-}
-
-func (suite *DockerUpdaterTestSuite) TestGetImageName_Success() {
-	service := "test-service"
-	network := "test-network"
-	expectedImage := "test-image:latest"
-
-	suite.mock.On("RunCommand", mock.Anything, []string{"docker", "ps", "-q", "--filter", "network=test-network"}).Return("container1", nil)
-	suite.mock.On("RunCommand", mock.Anything, []string{"docker", "inspect", "container1"}).Return(`[
-		{
-			"Id": "container1",
-			"Config": {
-				"Image": "test-image:latest"
-			},
-			"NetworkSettings": {
-				"Networks": {
-					"test-network": {
-						"Aliases": ["test-service"]
-					}
-				}
-			}
-		}
-	]`, nil)
-
-	imageName, err := suite.updater.getImageName(service, network)
-
-	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), expectedImage, imageName)
-	suite.mock.AssertExpectations(suite.T())
-}
-
-func (suite *DockerUpdaterTestSuite) TestGetImageName_NoContainerFound() {
-	service := "test-service"
-	network := "test-network"
-
-	suite.mock.On("RunCommand", mock.Anything, []string{"docker", "ps", "-q", "--filter", "network=test-network"}).Return("", nil)
-
-	imageName, err := suite.updater.getImageName(service, network)
-
-	assert.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "no container found with alias test-service in network test-network")
-	assert.Empty(suite.T(), imageName)
-	suite.mock.AssertExpectations(suite.T())
-}
-
-func (suite *DockerUpdaterTestSuite) TestGetImageName_DockerPsError() {
-	service := "test-service"
-	network := "test-network"
-
-	suite.mock.On("RunCommand", mock.Anything, []string{"docker", "ps", "-q", "--filter", "network=test-network"}).Return("", assert.AnError)
-
-	imageName, err := suite.updater.getImageName(service, network)
-
-	assert.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "failed to get container IDs")
-	assert.Empty(suite.T(), imageName)
-	suite.mock.AssertExpectations(suite.T())
+	ctx       context.Context
+	updater   *DockerUpdater
+	container testcontainers.Container
+	network   string
 }
 
 func TestDockerUpdaterSuite(t *testing.T) {
 	suite.Run(t, new(DockerUpdaterTestSuite))
+}
+
+type LocalExecutor struct{}
+
+func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
+	cmd := exec.CommandContext(ctx, command, args...)
+
+	combinedOutput, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	cmd.Stderr = cmd.Stdout
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	go func() {
+		_ = cmd.Wait()
+	}()
+
+	return combinedOutput, nil
+}
+
+func (suite *DockerUpdaterTestSuite) SetupSuite() {
+	suite.network = "aerie-test-network"
+	_ = exec.Command("docker", "network", "create", suite.network).Run()
+	suite.ctx = context.Background()
+	req := testcontainers.ContainerRequest{
+		Image:          "nginx:latest",
+		ExposedPorts:   []string{"80/tcp"},
+		WaitingFor:     wait.ForListeningPort("80/tcp"),
+		Networks:       []string{suite.network},
+		NetworkAliases: map[string][]string{suite.network: {"nginx"}},
+	}
+
+	container, err := testcontainers.GenericContainer(suite.ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	suite.Require().NoError(err)
+
+	suite.container = container
+}
+
+func (suite *DockerUpdaterTestSuite) TearDownSuite() {
+	if suite.container != nil {
+		suite.Require().NoError(suite.container.Terminate(suite.ctx))
+	}
+}
+
+func (suite *DockerUpdaterTestSuite) SetupTest() {
+	executor := &LocalExecutor{}
+	suite.updater = NewDockerUpdater(executor)
+}
+
+func (suite *DockerUpdaterTestSuite) TestGetImageName_Success() {
+	service := "nginx"
+	expectedImage := "nginx:latest"
+
+	imageName, err := suite.updater.getImageName(service, suite.network)
+
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), expectedImage, imageName)
+}
+
+func (suite *DockerUpdaterTestSuite) TestGetImageName_NoContainerFound() {
+	service := "non-existent-service"
+	network := "non-existent-network"
+
+	imageName, err := suite.updater.getImageName(service, network)
+
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "no container found with alias non-existent-service in network non-existent-network")
+	assert.Empty(suite.T(), imageName)
 }
