@@ -1,4 +1,4 @@
-package updater
+package deployment
 
 import (
 	"context"
