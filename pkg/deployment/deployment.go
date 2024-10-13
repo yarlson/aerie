@@ -26,6 +26,27 @@ func NewDeployment(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
+func (d *Deployment) StartProxy(network string) error {
+	image := "yarlson/zero-nginx:latest"
+	if err := d.pullImage(image); err != nil {
+		return fmt.Errorf("failed to pull image for %s: %v", image, err)
+	}
+
+	service := &config.Service{
+		Name:  "proxy",
+		Image: image,
+		Port:  80,
+		Volumes: []string{
+			"/etc/certificates:/etc/certificates",
+		},
+	}
+	if err := d.startContainer(service, network, ""); err != nil {
+		return fmt.Errorf("failed to start container for %s: %v", image, err)
+	}
+
+	return nil
+}
+
 func (d *Deployment) InstallService(service *config.Service, network string) error {
 	if err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)

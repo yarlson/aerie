@@ -22,7 +22,6 @@ import (
 
 type DeploymentTestSuite struct {
 	suite.Suite
-	ctx     context.Context
 	updater *Deployment
 	network string
 }
@@ -65,23 +64,6 @@ func (suite *DeploymentTestSuite) createTempDir() string {
 	tmpDir, err := os.MkdirTemp("", "docker-test")
 	assert.NoError(suite.T(), err)
 	return tmpDir
-}
-
-func (suite *DeploymentTestSuite) createInitialContainer(service, network, tmpDir string) {
-	cmd := exec.Command("docker", "run", "-d",
-		"--name", service,
-		"--network", network,
-		"--network-alias", service,
-		"--env", "TEST_ENV=test_value",
-		"--label", "com.example.label=test_label",
-		"--health-cmd", "curl -f http://localhost/ || exit 1",
-		"--health-interval=5s",
-		"--health-retries=3",
-		"--health-timeout=2s",
-		"-v", tmpDir+":/container/path",
-		"nginx:latest")
-	err := cmd.Run()
-	assert.NoError(suite.T(), err)
 }
 
 func (suite *DeploymentTestSuite) removeContainer(containerName string) {
