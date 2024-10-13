@@ -16,16 +16,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 type UpdaterTestSuite struct {
 	suite.Suite
-	ctx       context.Context
-	updater   *Deployment
-	container testcontainers.Container
-	network   string
+	ctx     context.Context
+	updater *Deployment
+	network string
 }
 
 func TestUpdaterSuite(t *testing.T) {
@@ -51,28 +48,9 @@ func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...
 func (suite *UpdaterTestSuite) SetupSuite() {
 	suite.network = "aerie-test-network"
 	_ = exec.Command("docker", "network", "create", suite.network).Run()
-	suite.ctx = context.Background()
-	req := testcontainers.ContainerRequest{
-		Image:          "nginx:latest",
-		ExposedPorts:   []string{"80/tcp"},
-		WaitingFor:     wait.ForListeningPort("80/tcp"),
-		Networks:       []string{suite.network},
-		NetworkAliases: map[string][]string{suite.network: {"nginx"}},
-	}
-
-	container, err := testcontainers.GenericContainer(suite.ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	suite.Require().NoError(err)
-
-	suite.container = container
 }
 
 func (suite *UpdaterTestSuite) TearDownSuite() {
-	if suite.container != nil {
-		suite.Require().NoError(suite.container.Terminate(suite.ctx))
-	}
 	_ = exec.Command("docker", "network", "rm", suite.network).Run()
 }
 
@@ -123,7 +101,6 @@ func (suite *UpdaterTestSuite) inspectContainer(containerName string) map[string
 }
 
 func (suite *UpdaterTestSuite) TestUpdateService() {
-	fmt.Printf("Starting at %s\n", time.Now().Format(time.RFC3339))
 	tmpDir := suite.createTempDir()
 	defer os.RemoveAll(tmpDir)
 
@@ -159,8 +136,6 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 	err := suite.updater.InstallService(initialService, network)
 	assert.NoError(suite.T(), err)
 
-	fmt.Printf("Installed at %s\n", time.Now().Format(time.RFC3339))
-
 	defer suite.removeContainer(serviceName)
 	defer suite.removeContainer(proxyName)
 
@@ -188,8 +163,6 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 	configCmd := exec.Command("docker", "exec", proxyName, "bash", "-c", "echo '"+proxyConfig+"' > /etc/nginx/nginx.conf && nginx -s reload")
 	err = configCmd.Run()
 	assert.NoError(suite.T(), err)
-
-	fmt.Printf("Proxy started at %s\n", time.Now().Format(time.RFC3339))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -253,8 +226,6 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 	err = suite.updater.UpdateService(updatedService, network)
 	assert.NoError(suite.T(), err)
 
-	fmt.Printf("Updated at %s\n", time.Now().Format(time.RFC3339))
-
 	updatedContainerID, err := suite.updater.getContainerID(serviceName, network)
 	assert.NoError(suite.T(), err)
 
@@ -301,6 +272,4 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 		err = suite.updater.performHealthChecks(serviceName, updatedService.HealthCheck)
 		assert.NoError(suite.T(), err)
 	})
-
-	fmt.Printf("Completed at %s\n", time.Now().Format(time.RFC3339))
 }
