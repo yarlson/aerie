@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/yarlson/aerie/pkg/config"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/yarlson/aerie/pkg/config"
 )
 
 const (

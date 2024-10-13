@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/yarlson/aerie/pkg/config"
 	"io"
 	"net/http"
 	"os"
@@ -18,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/yarlson/aerie/pkg/config"
 )
 
 type DeploymentTestSuite struct {
