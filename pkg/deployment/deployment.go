@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -271,4 +272,10 @@ func (d *Deployment) copyTextFile(sourceText, destination string) error {
 	}
 
 	return nil
+}
+
+func (d *Deployment) makeProjectFolder(projectName string) error {
+	projectPath := filepath.Join("$HOME", "projects", projectName)
+	_, err := d.runCommand(context.Background(), "mkdir", "-p", projectPath)
+	return err
 }

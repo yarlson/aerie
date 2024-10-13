@@ -284,3 +284,12 @@ func (suite *DeploymentTestSuite) TestCopyTextFile() {
 	suite.Require().NoError(err)
 	suite.Equal(strings.TrimSpace(specialContent), strings.TrimSpace(string(specialDestContent)))
 }
+
+func (suite *DeploymentTestSuite) TestMakeProjectFolder() {
+	projectName := "test-project"
+
+	suite.Run("Successful folder creation", func() {
+		err := suite.updater.makeProjectFolder(projectName)
+		suite.Require().NoError(err)
+	})
+}
