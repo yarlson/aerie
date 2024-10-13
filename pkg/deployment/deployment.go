@@ -238,3 +238,15 @@ func (d *Deployment) runCommand(ctx context.Context, command string, args ...str
 
 	return outputBuilder.String(), nil
 }
+
+func (d *Deployment) copyTextFile(sourceText, destination string) error {
+	escapedSource := strings.ReplaceAll(sourceText, "'", "'\\''")
+	command := "bash"
+	args := []string{"-c", fmt.Sprintf("echo '%s' > %s", escapedSource, destination)}
+	_, err := d.runCommand(context.Background(), command, args...)
+	if err != nil {
+		return fmt.Errorf("failed to copy text file: %w", err)
+	}
+
+	return nil
+}
