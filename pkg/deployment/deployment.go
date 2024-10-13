@@ -26,29 +26,29 @@ func NewUpdater(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
-func (u *Deployment) UpdateService(service *config.Service, network string) error {
+func (d *Deployment) UpdateService(service *config.Service, network string) error {
 	svcName := service.Name
 
-	if err := u.pullImage(service.Image); err != nil {
+	if err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
-	if err := u.startNewContainer(service, network); err != nil {
+	if err := d.startNewContainer(service, network); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
 
-	if err := u.performHealthChecks(svcName+newContainerSuffix, service.HealthCheck); err != nil {
-		if _, err := u.runCommand(context.Background(), "docker", "rm", "-f", svcName+newContainerSuffix); err != nil {
+	if err := d.performHealthChecks(svcName+newContainerSuffix, service.HealthCheck); err != nil {
+		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", svcName+newContainerSuffix); err != nil {
 			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", svcName, err)
 		}
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", svcName, err)
 	}
 
-	if err := u.switchTraffic(svcName, network); err != nil {
+	if err := d.switchTraffic(svcName, network); err != nil {
 		return fmt.Errorf("failed to switch traffic for %s: %v", svcName, err)
 	}
 
-	if err := u.cleanup(svcName, network); err != nil {
+	if err := d.cleanup(svcName, network); err != nil {
 		return fmt.Errorf("failed to cleanup for %s: %v", svcName, err)
 	}
 
@@ -68,8 +68,8 @@ type containerInfo struct {
 	}
 }
 
-func (u *Deployment) getContainerID(service, network string) (string, error) {
-	info, err := u.getContainerInfo(service, network)
+func (d *Deployment) getContainerID(service, network string) (string, error) {
+	info, err := d.getContainerInfo(service, network)
 	if err != nil {
 		return "", err
 	}
@@ -77,15 +77,15 @@ func (u *Deployment) getContainerID(service, network string) (string, error) {
 	return info.ID, err
 }
 
-func (u *Deployment) getContainerInfo(service, network string) (*containerInfo, error) {
-	output, err := u.runCommand(context.Background(), "docker", "ps", "-q", "--filter", fmt.Sprintf("network=%s", network))
+func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, error) {
+	output, err := d.runCommand(context.Background(), "docker", "ps", "-q", "--filter", fmt.Sprintf("network=%s", network))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container IDs: %w", err)
 	}
 
 	containerIDs := strings.Fields(output)
 	for _, cid := range containerIDs {
-		inspectOutput, err := u.runCommand(context.Background(), "docker", "inspect", cid)
+		inspectOutput, err := d.runCommand(context.Background(), "docker", "inspect", cid)
 		if err != nil {
 			continue
 		}
@@ -107,7 +107,7 @@ func (u *Deployment) getContainerInfo(service, network string) (*containerInfo, 
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (u *Deployment) startNewContainer(service *config.Service, network string) error {
+func (d *Deployment) startNewContainer(service *config.Service, network string) error {
 	svcName := service.Name
 
 	args := []string{"run", "-d", "--name", svcName + newContainerSuffix, "--network", network, "--network-alias", svcName + newContainerSuffix}
@@ -129,13 +129,13 @@ func (u *Deployment) startNewContainer(service *config.Service, network string) 
 
 	args = append(args, service.Image)
 
-	_, err := u.runCommand(context.Background(), "docker", args...)
+	_, err := d.runCommand(context.Background(), "docker", args...)
 	return err
 }
 
-func (u *Deployment) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
+func (d *Deployment) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
 	for i := 0; i < healthCheck.Retries; i++ {
-		output, err := u.runCommand(context.Background(), "docker", "inspect", "--format={{.State.Health.Status}}", container)
+		output, err := d.runCommand(context.Background(), "docker", "inspect", "--format={{.State.Health.Status}}", container)
 		if err == nil && strings.TrimSpace(output) == "healthy" {
 			return nil
 		}
@@ -144,9 +144,9 @@ func (u *Deployment) performHealthChecks(container string, healthCheck *config.H
 	return fmt.Errorf("container failed to become healthy")
 }
 
-func (u *Deployment) switchTraffic(service, network string) error {
+func (d *Deployment) switchTraffic(service, network string) error {
 	newContainer := service + newContainerSuffix
-	oldContainer, err := u.getContainerID(service, network)
+	oldContainer, err := d.getContainerID(service, network)
 	if err != nil {
 		return fmt.Errorf("failed to get old container ID: %v", err)
 	}
@@ -158,7 +158,7 @@ func (u *Deployment) switchTraffic(service, network string) error {
 	}
 
 	for _, cmd := range cmds {
-		if _, err := u.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+		if _, err := d.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
 			return fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
 		}
 	}
@@ -166,8 +166,8 @@ func (u *Deployment) switchTraffic(service, network string) error {
 	return nil
 }
 
-func (u *Deployment) cleanup(service, network string) error {
-	oldContainer, err := u.getContainerID(service, network)
+func (d *Deployment) cleanup(service, network string) error {
+	oldContainer, err := d.getContainerID(service, network)
 	if err != nil {
 		return fmt.Errorf("failed to get old container ID: %v", err)
 	}
@@ -179,7 +179,7 @@ func (u *Deployment) cleanup(service, network string) error {
 	}
 
 	for _, cmd := range cmds {
-		if _, err := u.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+		if _, err := d.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
 			return fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
 		}
 	}
@@ -187,14 +187,14 @@ func (u *Deployment) cleanup(service, network string) error {
 	return nil
 }
 
-func (u *Deployment) pullImage(imageName string) error {
-	_, err := u.runCommand(context.Background(), "docker", "pull", imageName)
+func (d *Deployment) pullImage(imageName string) error {
+	_, err := d.runCommand(context.Background(), "docker", "pull", imageName)
 	return err
 }
 
 // Helper function to run commands and read output
-func (u *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
-	output, err := u.executor.RunCommand(ctx, command, args...)
+func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
+	output, err := d.executor.RunCommand(ctx, command, args...)
 	if err != nil {
 		return "", err
 	}
