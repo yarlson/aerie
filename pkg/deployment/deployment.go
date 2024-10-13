@@ -179,6 +179,17 @@ func (d *Deployment) switchTraffic(service, network string) (string, error) {
 	cmds := [][]string{
 		{"docker", "network", "disconnect", network, newContainer},
 		{"docker", "network", "connect", "--alias", service, network, newContainer},
+	}
+
+	for _, cmd := range cmds {
+		if _, err := d.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+			return "", fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
+		}
+	}
+
+	time.Sleep(1 * time.Second)
+
+	cmds = [][]string{
 		{"docker", "network", "disconnect", network, oldContainer},
 	}
 

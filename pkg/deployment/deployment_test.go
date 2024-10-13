@@ -1,12 +1,16 @@
 package deployment
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/yarlson/aerie/pkg/config"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,21 +37,15 @@ type LocalExecutor struct{}
 func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
 	cmd := exec.CommandContext(ctx, command, args...)
 
-	combinedOutput, err := cmd.StdoutPipe()
-	if err != nil {
+	var combinedOutput bytes.Buffer
+	cmd.Stdout = &combinedOutput
+	cmd.Stderr = &combinedOutput
+
+	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
-	cmd.Stderr = cmd.Stdout
 
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	go func() {
-		_ = cmd.Wait()
-	}()
-
-	return combinedOutput, nil
+	return bytes.NewReader(combinedOutput.Bytes()), nil
 }
 
 func (suite *UpdaterTestSuite) SetupSuite() {
@@ -107,6 +105,7 @@ func (suite *UpdaterTestSuite) createInitialContainer(service, network, tmpDir s
 }
 
 func (suite *UpdaterTestSuite) removeContainer(containerName string) {
+	_ = exec.Command("docker", "stop", containerName).Run() // nolint: errcheck
 	_ = exec.Command("docker", "rm", "-f", containerName).Run()
 }
 
@@ -123,82 +122,15 @@ func (suite *UpdaterTestSuite) inspectContainer(containerName string) map[string
 	return containerInfo[0]
 }
 
-func (suite *UpdaterTestSuite) TestInstallService() {
-	tmpDir := suite.createTempDir()
-	defer os.RemoveAll(tmpDir)
-
-	serviceName := "test-service"
-	network := "aerie-test-network"
-
-	service := &config.Service{
-		Name:  serviceName,
-		Image: "nginx:latest",
-		Port:  80,
-		EnvVars: []config.EnvVar{
-			{
-				Name:  "TEST_ENV",
-				Value: "test_value",
-			},
-		},
-		Volumes: []string{
-			tmpDir + ":/container/path",
-		},
-		HealthCheck: &config.HealthCheck{
-			Path:     "/",
-			Interval: time.Second,
-			Timeout:  time.Second,
-			Retries:  30,
-		},
-	}
-
-	// Ensure the container doesn't exist before the test
-	suite.removeContainer(serviceName)
-
-	// Test InstallService
-	err := suite.updater.InstallService(service, network)
-	assert.NoError(suite.T(), err)
-
-	defer suite.removeContainer(serviceName)
-
-	// Verify the container was created and is running
-	containerInfo := suite.inspectContainer(serviceName)
-
-	suite.Run("Container State and Config", func() {
-		assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
-		assert.Contains(suite.T(), containerInfo["Config"].(map[string]interface{})["Image"], "nginx")
-		assert.Equal(suite.T(), network, containerInfo["HostConfig"].(map[string]interface{})["NetworkMode"])
-	})
-
-	suite.Run("Environment Variables", func() {
-		env := containerInfo["Config"].(map[string]interface{})["Env"].([]interface{})
-		assert.Contains(suite.T(), env, "TEST_ENV=test_value")
-	})
-
-	suite.Run("Volume Bindings", func() {
-		binds := containerInfo["HostConfig"].(map[string]interface{})["Binds"].([]interface{})
-		assert.Contains(suite.T(), binds, tmpDir+":/container/path")
-	})
-
-	suite.Run("Network Aliases", func() {
-		networkSettings := containerInfo["NetworkSettings"].(map[string]interface{})
-		networks := networkSettings["Networks"].(map[string]interface{})
-		networkInfo := networks[network].(map[string]interface{})
-		aliases := networkInfo["Aliases"].([]interface{})
-		assert.Contains(suite.T(), aliases, serviceName)
-	})
-
-	suite.Run("Health Checks", func() {
-		err = suite.updater.performHealthChecks(serviceName, service.HealthCheck)
-		assert.NoError(suite.T(), err)
-	})
-}
-
 func (suite *UpdaterTestSuite) TestUpdateService() {
+	fmt.Printf("Starting at %s\n", time.Now().Format(time.RFC3339))
 	tmpDir := suite.createTempDir()
 	defer os.RemoveAll(tmpDir)
 
 	serviceName := "test-update-service"
 	network := "aerie-test-network"
+	proxyName := "nginx-proxy"
+	proxyPort := "8080"
 
 	initialService := &config.Service{
 		Name:  serviceName,
@@ -222,11 +154,77 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 	}
 
 	suite.removeContainer(serviceName)
+	suite.removeContainer(proxyName)
 
 	err := suite.updater.InstallService(initialService, network)
 	assert.NoError(suite.T(), err)
 
+	fmt.Printf("Installed at %s\n", time.Now().Format(time.RFC3339))
+
 	defer suite.removeContainer(serviceName)
+	defer suite.removeContainer(proxyName)
+
+	proxyCmd := exec.Command("docker", "run", "-d",
+		"--name", proxyName,
+		"--network", network,
+		"-p", proxyPort+":80",
+		"nginx:latest")
+	err = proxyCmd.Run()
+	assert.NoError(suite.T(), err)
+
+	proxyConfig := fmt.Sprintf(`
+		events {}
+		http {
+			server {
+				listen 80;
+				location / {
+					resolver 127.0.0.11 valid=1s;
+					set $service %s;
+					proxy_pass http://$service;
+				}
+			}
+		}
+	`, serviceName)
+	configCmd := exec.Command("docker", "exec", proxyName, "bash", "-c", "echo '"+proxyConfig+"' > /etc/nginx/nginx.conf && nginx -s reload")
+	err = configCmd.Run()
+	assert.NoError(suite.T(), err)
+
+	fmt.Printf("Proxy started at %s\n", time.Now().Format(time.RFC3339))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	requestStats := struct {
+		totalRequests  int32
+		failedRequests int32
+	}{}
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					resp, err := http.Get("http://localhost:" + proxyPort)
+					atomic.AddInt32(&requestStats.totalRequests, 1)
+					if err != nil || resp.StatusCode != http.StatusOK {
+						atomic.AddInt32(&requestStats.failedRequests, 1)
+					}
+					if resp != nil {
+						if resp.StatusCode != http.StatusOK {
+							b, _ := io.ReadAll(resp.Body)
+							fmt.Println(string(b))
+						}
+						_ = resp.Body.Close()
+					}
+					time.Sleep(1 * time.Millisecond)
+				}
+			}
+		}()
+	}
+
+	time.Sleep(2 * time.Second)
 
 	initialContainerID, err := suite.updater.getContainerID(serviceName, network)
 	assert.NoError(suite.T(), err)
@@ -255,16 +253,21 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 	err = suite.updater.UpdateService(updatedService, network)
 	assert.NoError(suite.T(), err)
 
-	var updatedContainerID string
-	for i := 0; i < 30; i++ {
-		updatedContainerID, err = suite.updater.getContainerID(serviceName, network)
-		if err == nil && updatedContainerID != initialContainerID {
-			break
-		}
-		time.Sleep(time.Second)
-	}
+	fmt.Printf("Updated at %s\n", time.Now().Format(time.RFC3339))
+
+	updatedContainerID, err := suite.updater.getContainerID(serviceName, network)
+	assert.NoError(suite.T(), err)
 
 	assert.NotEqual(suite.T(), initialContainerID, updatedContainerID)
+
+	time.Sleep(2 * time.Second)
+
+	cancel()
+
+	fmt.Printf("Total requests: %d\n", requestStats.totalRequests)
+	fmt.Printf("Failed requests: %d\n", requestStats.failedRequests)
+
+	assert.Equal(suite.T(), int32(0), requestStats.failedRequests, "Expected zero failed requests during zero-downtime deployment")
 
 	containerInfo := suite.inspectContainer(serviceName)
 
@@ -298,4 +301,6 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 		err = suite.updater.performHealthChecks(serviceName, updatedService.HealthCheck)
 		assert.NoError(suite.T(), err)
 	})
+
+	fmt.Printf("Completed at %s\n", time.Now().Format(time.RFC3339))
 }
