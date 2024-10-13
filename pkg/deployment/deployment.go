@@ -26,6 +26,18 @@ func NewUpdater(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
+func (i *Deployment) InstallService(service *config.Service, network string) error {
+	if err := i.pullImage(service.Image); err != nil {
+		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
+	}
+
+	if err := i.startContainer(service, network, ""); err != nil {
+		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
+	}
+
+	return nil
+}
+
 func (d *Deployment) UpdateService(service *config.Service, network string) error {
 	svcName := service.Name
 
@@ -33,7 +45,7 @@ func (d *Deployment) UpdateService(service *config.Service, network string) erro
 		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
-	if err := d.startNewContainer(service, network); err != nil {
+	if err := d.startContainer(service, network, newContainerSuffix); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
 
@@ -107,7 +119,7 @@ func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, 
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (d *Deployment) startNewContainer(service *config.Service, network string) error {
+func (d *Deployment) startContainer(service *config.Service, network, prefix string) error {
 	svcName := service.Name
 
 	args := []string{"run", "-d", "--name", svcName + newContainerSuffix, "--network", network, "--network-alias", svcName + newContainerSuffix}

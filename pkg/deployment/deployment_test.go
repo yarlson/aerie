@@ -175,7 +175,7 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 	suite.createInitialContainer(svsName, network, tmpDir)
 	defer suite.removeContainer(svsName)
 
-	err := suite.updater.startNewContainer(service, network)
+	err := suite.updater.startContainer(service, network, "")
 	assert.NoError(suite.T(), err)
 	defer suite.removeContainer(svsName + newContainerSuffix)
 
