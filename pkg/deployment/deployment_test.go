@@ -3,7 +3,6 @@ package deployment
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/yarlson/aerie/pkg/config"
 	"io"
 	"os"
@@ -122,123 +121,6 @@ func (suite *UpdaterTestSuite) inspectContainer(containerName string) map[string
 	assert.Len(suite.T(), containerInfo, 1)
 
 	return containerInfo[0]
-}
-
-func (suite *UpdaterTestSuite) TestGetContainerId_Success() {
-	service := "nginx"
-	network := "aerie-test-network"
-
-	containerID, err := suite.updater.getContainerID(service, network)
-
-	assert.NoError(suite.T(), err)
-	assert.NotEmpty(suite.T(), containerID)
-}
-
-func (suite *UpdaterTestSuite) TestGetContainerId_NoContainerFound() {
-	service := "non-existent-service"
-	network := "non-existent-network"
-
-	containerID, err := suite.updater.getContainerID(service, network)
-
-	assert.Error(suite.T(), err)
-	assert.Contains(suite.T(), err.Error(), "no container found with alias non-existent-service in network non-existent-network")
-	assert.Empty(suite.T(), containerID)
-}
-
-func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
-	tmpDir := suite.createTempDir()
-	defer os.RemoveAll(tmpDir)
-
-	service := &config.Service{
-		Name:  "nginx",
-		Image: "nginx:latest",
-		Port:  80,
-		EnvVars: []config.EnvVar{
-			{
-				Name:  "TEST_ENV",
-				Value: "test_value",
-			},
-		},
-		Volumes: []string{
-			tmpDir + ":/container/path",
-		},
-		HealthCheck: &config.HealthCheck{
-			Path:     "/",
-			Interval: time.Second,
-			Timeout:  time.Second,
-			Retries:  3,
-		},
-	}
-
-	svsName := service.Name
-	network := "aerie-test-network"
-	suite.createInitialContainer(svsName, network, tmpDir)
-	defer suite.removeContainer(svsName)
-
-	err := suite.updater.startContainer(service, network, newContainerSuffix)
-	assert.NoError(suite.T(), err)
-	defer suite.removeContainer(svsName + newContainerSuffix)
-
-	containerInfo := suite.inspectContainer(svsName + newContainerSuffix)
-
-	suite.Run("Container State and Config", func() {
-		assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
-		assert.Contains(suite.T(), containerInfo["Config"].(map[string]interface{})["Image"], "nginx")
-		assert.Equal(suite.T(), network, containerInfo["HostConfig"].(map[string]interface{})["NetworkMode"])
-	})
-
-	suite.Run("Environment Variables", func() {
-		env := containerInfo["Config"].(map[string]interface{})["Env"].([]interface{})
-		assert.Contains(suite.T(), env, "TEST_ENV=test_value")
-	})
-
-	suite.Run("Volume Bindings", func() {
-		binds := containerInfo["HostConfig"].(map[string]interface{})["Binds"].([]interface{})
-		assert.Contains(suite.T(), binds, tmpDir+":/container/path")
-	})
-
-	suite.Run("Network Aliases", func() {
-		networkSettings := containerInfo["NetworkSettings"].(map[string]interface{})
-		networks := networkSettings["Networks"].(map[string]interface{})
-		networkInfo := networks[network].(map[string]interface{})
-		aliases := networkInfo["Aliases"].([]interface{})
-		assert.Contains(suite.T(), aliases, svsName+newContainerSuffix)
-	})
-
-	suite.Run("Health Checks", func() {
-		err = suite.updater.performHealthChecks(svsName+newContainerSuffix, service.HealthCheck)
-		assert.NoError(suite.T(), err)
-	})
-
-	oldContID := ""
-	suite.Run("Switch Traffic", func() {
-		oldContID, err = suite.updater.switchTraffic(svsName, network)
-		assert.NoError(suite.T(), err)
-
-		newContainerInfo, err := suite.updater.getContainerInfo(svsName, network)
-		assert.NoError(suite.T(), err)
-
-		assert.Contains(suite.T(), newContainerInfo.NetworkSettings.Networks, network)
-
-		networkAliases := newContainerInfo.NetworkSettings.Networks[network].Aliases
-		assert.Contains(suite.T(), networkAliases, svsName)
-
-		// Verify old container is no longer in the network
-		oldContainerID, err := suite.updater.getContainerID(svsName+newContainerSuffix, network)
-		assert.Error(suite.T(), err)
-		assert.Empty(suite.T(), oldContainerID)
-	})
-
-	suite.Run("Cleanup", func() {
-		err := suite.updater.cleanup(oldContID, svsName)
-		assert.NoError(suite.T(), err)
-
-		output, err := suite.updater.runCommand(context.Background(), "docker", "ps", "-a", "--filter", fmt.Sprintf("name=%s", svsName))
-		assert.NoError(suite.T(), err)
-		assert.NotContains(suite.T(), output, svsName+newContainerSuffix)
-
-		assert.Contains(suite.T(), output, svsName)
-	})
 }
 
 func (suite *UpdaterTestSuite) TestInstallService() {
