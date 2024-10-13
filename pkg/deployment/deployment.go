@@ -22,7 +22,7 @@ type Deployment struct {
 	executor Executor
 }
 
-func NewUpdater(executor Executor) *Deployment {
+func NewDeployment(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 

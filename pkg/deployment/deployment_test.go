@@ -20,15 +20,15 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type UpdaterTestSuite struct {
+type DeploymentTestSuite struct {
 	suite.Suite
 	ctx     context.Context
 	updater *Deployment
 	network string
 }
 
-func TestUpdaterSuite(t *testing.T) {
-	suite.Run(t, new(UpdaterTestSuite))
+func TestDeploymentSuite(t *testing.T) {
+	suite.Run(t, new(DeploymentTestSuite))
 }
 
 type LocalExecutor struct{}
@@ -47,27 +47,27 @@ func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...
 	return bytes.NewReader(combinedOutput.Bytes()), nil
 }
 
-func (suite *UpdaterTestSuite) SetupSuite() {
+func (suite *DeploymentTestSuite) SetupSuite() {
 	suite.network = "aerie-test-network"
 	_ = exec.Command("docker", "network", "create", suite.network).Run()
 }
 
-func (suite *UpdaterTestSuite) TearDownSuite() {
+func (suite *DeploymentTestSuite) TearDownSuite() {
 	_ = exec.Command("docker", "network", "rm", suite.network).Run()
 }
 
-func (suite *UpdaterTestSuite) SetupTest() {
+func (suite *DeploymentTestSuite) SetupTest() {
 	executor := &LocalExecutor{}
-	suite.updater = NewUpdater(executor)
+	suite.updater = NewDeployment(executor)
 }
 
-func (suite *UpdaterTestSuite) createTempDir() string {
+func (suite *DeploymentTestSuite) createTempDir() string {
 	tmpDir, err := os.MkdirTemp("", "docker-test")
 	assert.NoError(suite.T(), err)
 	return tmpDir
 }
 
-func (suite *UpdaterTestSuite) createInitialContainer(service, network, tmpDir string) {
+func (suite *DeploymentTestSuite) createInitialContainer(service, network, tmpDir string) {
 	cmd := exec.Command("docker", "run", "-d",
 		"--name", service,
 		"--network", network,
@@ -84,12 +84,12 @@ func (suite *UpdaterTestSuite) createInitialContainer(service, network, tmpDir s
 	assert.NoError(suite.T(), err)
 }
 
-func (suite *UpdaterTestSuite) removeContainer(containerName string) {
+func (suite *DeploymentTestSuite) removeContainer(containerName string) {
 	_ = exec.Command("docker", "stop", containerName).Run() // nolint: errcheck
 	_ = exec.Command("docker", "rm", "-f", containerName).Run()
 }
 
-func (suite *UpdaterTestSuite) inspectContainer(containerName string) map[string]interface{} {
+func (suite *DeploymentTestSuite) inspectContainer(containerName string) map[string]interface{} {
 	cmd := exec.Command("docker", "inspect", containerName)
 	output, err := cmd.Output()
 	assert.NoError(suite.T(), err)
@@ -102,7 +102,7 @@ func (suite *UpdaterTestSuite) inspectContainer(containerName string) map[string
 	return containerInfo[0]
 }
 
-func (suite *UpdaterTestSuite) TestUpdateService() {
+func (suite *DeploymentTestSuite) TestUpdateService() {
 	tmpDir := suite.createTempDir()
 	defer os.RemoveAll(tmpDir)
 
@@ -276,7 +276,7 @@ func (suite *UpdaterTestSuite) TestUpdateService() {
 	})
 }
 
-func (suite *UpdaterTestSuite) TestCopyTextFile() {
+func (suite *DeploymentTestSuite) TestCopyTextFile() {
 	tmpDir, err := os.MkdirTemp("", "copyTextFile-test")
 	suite.Require().NoError(err)
 	defer os.RemoveAll(tmpDir)
