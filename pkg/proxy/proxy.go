@@ -44,7 +44,9 @@ http {
 		{{- if .StripPrefix}}
 			rewrite ^{{.PathPrefix}}(.*)$ /$1 break;
 		{{- end}}
-			proxy_pass http://{{$serviceName}};
+			resolver 127.0.0.11 valid=1s;
+			set $service {{$serviceName}};
+			proxy_pass http://$service;
 		}
 	{{- end}}
 {{- end}}

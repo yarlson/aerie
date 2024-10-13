@@ -74,7 +74,9 @@ http {
         ssl_prefer_server_ciphers on;
 
         location / {
-            proxy_pass http://web;
+            resolver 127.0.0.11 valid=1s;
+            set $service web;
+            proxy_pass http://$service;
         }
     }
 }
@@ -145,12 +147,16 @@ http {
         ssl_prefer_server_ciphers on;
 
         location / {
-            proxy_pass http://web;
+            resolver 127.0.0.11 valid=1s;
+            set $service web;
+            proxy_pass http://$service;
         }
 
         location /api {
             rewrite ^/api(.*)$ /$1 break;
-            proxy_pass http://api;
+            resolver 127.0.0.11 valid=1s;
+            set $service api;
+            proxy_pass http://$service;
         }
     }
 }
