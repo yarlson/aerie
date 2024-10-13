@@ -26,13 +26,19 @@ func NewUpdater(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
-func (i *Deployment) InstallService(service *config.Service, network string) error {
-	if err := i.pullImage(service.Image); err != nil {
+func (d *Deployment) InstallService(service *config.Service, network string) error {
+	if err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
 	}
 
-	if err := i.startContainer(service, network, ""); err != nil {
+	if err := d.startContainer(service, network, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
+	}
+
+	svcName := service.Name
+
+	if err := d.performHealthChecks(svcName, service.HealthCheck); err != nil {
+		return fmt.Errorf("install failed for %s: container is unhealthy: %w", svcName, err)
 	}
 
 	return nil
