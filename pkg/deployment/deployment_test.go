@@ -20,7 +20,7 @@ import (
 type UpdaterTestSuite struct {
 	suite.Suite
 	ctx       context.Context
-	updater   *Updater
+	updater   *Deployment
 	container testcontainers.Container
 	network   string
 }

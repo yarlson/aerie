@@ -18,15 +18,15 @@ type Executor interface {
 	RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error)
 }
 
-type Updater struct {
+type Deployment struct {
 	executor Executor
 }
 
-func NewUpdater(executor Executor) *Updater {
-	return &Updater{executor: executor}
+func NewUpdater(executor Executor) *Deployment {
+	return &Deployment{executor: executor}
 }
 
-func (u *Updater) UpdateService(service *config.Service, network string) error {
+func (u *Deployment) UpdateService(service *config.Service, network string) error {
 	svcName := service.Name
 
 	if err := u.pullImage(service.Image); err != nil {
@@ -68,7 +68,7 @@ type containerInfo struct {
 	}
 }
 
-func (u *Updater) getContainerID(service, network string) (string, error) {
+func (u *Deployment) getContainerID(service, network string) (string, error) {
 	info, err := u.getContainerInfo(service, network)
 	if err != nil {
 		return "", err
@@ -77,7 +77,7 @@ func (u *Updater) getContainerID(service, network string) (string, error) {
 	return info.ID, err
 }
 
-func (u *Updater) getContainerInfo(service, network string) (*containerInfo, error) {
+func (u *Deployment) getContainerInfo(service, network string) (*containerInfo, error) {
 	output, err := u.runCommand(context.Background(), "docker", "ps", "-q", "--filter", fmt.Sprintf("network=%s", network))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container IDs: %w", err)
@@ -107,7 +107,7 @@ func (u *Updater) getContainerInfo(service, network string) (*containerInfo, err
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (u *Updater) startNewContainer(service *config.Service, network string) error {
+func (u *Deployment) startNewContainer(service *config.Service, network string) error {
 	svcName := service.Name
 
 	args := []string{"run", "-d", "--name", svcName + newContainerSuffix, "--network", network, "--network-alias", svcName + newContainerSuffix}
@@ -133,7 +133,7 @@ func (u *Updater) startNewContainer(service *config.Service, network string) err
 	return err
 }
 
-func (u *Updater) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
+func (u *Deployment) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
 	for i := 0; i < healthCheck.Retries; i++ {
 		output, err := u.runCommand(context.Background(), "docker", "inspect", "--format={{.State.Health.Status}}", container)
 		if err == nil && strings.TrimSpace(output) == "healthy" {
@@ -144,7 +144,7 @@ func (u *Updater) performHealthChecks(container string, healthCheck *config.Heal
 	return fmt.Errorf("container failed to become healthy")
 }
 
-func (u *Updater) switchTraffic(service, network string) error {
+func (u *Deployment) switchTraffic(service, network string) error {
 	newContainer := service + newContainerSuffix
 	oldContainer, err := u.getContainerID(service, network)
 	if err != nil {
@@ -166,7 +166,7 @@ func (u *Updater) switchTraffic(service, network string) error {
 	return nil
 }
 
-func (u *Updater) cleanup(service, network string) error {
+func (u *Deployment) cleanup(service, network string) error {
 	oldContainer, err := u.getContainerID(service, network)
 	if err != nil {
 		return fmt.Errorf("failed to get old container ID: %v", err)
@@ -187,13 +187,13 @@ func (u *Updater) cleanup(service, network string) error {
 	return nil
 }
 
-func (u *Updater) pullImage(imageName string) error {
+func (u *Deployment) pullImage(imageName string) error {
 	_, err := u.runCommand(context.Background(), "docker", "pull", imageName)
 	return err
 }
 
 // Helper function to run commands and read output
-func (u *Updater) runCommand(ctx context.Context, command string, args ...string) (string, error) {
+func (u *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
 	output, err := u.executor.RunCommand(ctx, command, args...)
 	if err != nil {
 		return "", err
