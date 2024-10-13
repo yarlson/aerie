@@ -145,6 +145,12 @@ func (d *Deployment) startContainer(service *config.Service, network, suffix str
 		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
 	}
 
+	if len(service.Forwards) > 0 {
+		for _, forward := range service.Forwards {
+			args = append(args, "-p", forward)
+		}
+	}
+
 	args = append(args, service.Image)
 
 	_, err := d.runCommand(context.Background(), "docker", args...)

@@ -30,6 +30,8 @@ type Service struct {
 	Routes      []Route      `yaml:"routes" validate:"required,dive"`
 	Volumes     []string     `yaml:"volumes" validate:"dive,volume_reference"`
 
+	Forwards []string
+
 	EnvVars []EnvVar
 }
 
