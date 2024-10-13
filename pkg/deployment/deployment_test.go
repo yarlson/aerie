@@ -175,7 +175,7 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 	suite.createInitialContainer(svsName, network, tmpDir)
 	defer suite.removeContainer(svsName)
 
-	err := suite.updater.startContainer(service, network, "")
+	err := suite.updater.startContainer(service, network, newContainerSuffix)
 	assert.NoError(suite.T(), err)
 	defer suite.removeContainer(svsName + newContainerSuffix)
 
@@ -237,5 +237,75 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 		assert.NotContains(suite.T(), output, svsName+newContainerSuffix)
 
 		assert.Contains(suite.T(), output, svsName)
+	})
+}
+
+func (suite *UpdaterTestSuite) TestInstallService() {
+	tmpDir := suite.createTempDir()
+	defer os.RemoveAll(tmpDir)
+
+	serviceName := "test-service"
+	network := "aerie-test-network"
+
+	service := &config.Service{
+		Name:  serviceName,
+		Image: "nginx:latest",
+		Port:  80,
+		EnvVars: []config.EnvVar{
+			{
+				Name:  "TEST_ENV",
+				Value: "test_value",
+			},
+		},
+		Volumes: []string{
+			tmpDir + ":/container/path",
+		},
+		HealthCheck: &config.HealthCheck{
+			Path:     "/",
+			Interval: time.Second,
+			Timeout:  time.Second,
+			Retries:  30,
+		},
+	}
+
+	// Ensure the container doesn't exist before the test
+	suite.removeContainer(serviceName)
+
+	// Test InstallService
+	err := suite.updater.InstallService(service, network)
+	assert.NoError(suite.T(), err)
+
+	defer suite.removeContainer(serviceName)
+
+	// Verify the container was created and is running
+	containerInfo := suite.inspectContainer(serviceName)
+
+	suite.Run("Container State and Config", func() {
+		assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
+		assert.Contains(suite.T(), containerInfo["Config"].(map[string]interface{})["Image"], "nginx")
+		assert.Equal(suite.T(), network, containerInfo["HostConfig"].(map[string]interface{})["NetworkMode"])
+	})
+
+	suite.Run("Environment Variables", func() {
+		env := containerInfo["Config"].(map[string]interface{})["Env"].([]interface{})
+		assert.Contains(suite.T(), env, "TEST_ENV=test_value")
+	})
+
+	suite.Run("Volume Bindings", func() {
+		binds := containerInfo["HostConfig"].(map[string]interface{})["Binds"].([]interface{})
+		assert.Contains(suite.T(), binds, tmpDir+":/container/path")
+	})
+
+	suite.Run("Network Aliases", func() {
+		networkSettings := containerInfo["NetworkSettings"].(map[string]interface{})
+		networks := networkSettings["Networks"].(map[string]interface{})
+		networkInfo := networks[network].(map[string]interface{})
+		aliases := networkInfo["Aliases"].([]interface{})
+		assert.Contains(suite.T(), aliases, serviceName)
+	})
+
+	suite.Run("Health Checks", func() {
+		err = suite.updater.performHealthChecks(serviceName, service.HealthCheck)
+		assert.NoError(suite.T(), err)
 	})
 }

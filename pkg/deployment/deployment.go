@@ -125,10 +125,10 @@ func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, 
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (d *Deployment) startContainer(service *config.Service, network, prefix string) error {
+func (d *Deployment) startContainer(service *config.Service, network, suffix string) error {
 	svcName := service.Name
 
-	args := []string{"run", "-d", "--name", svcName + newContainerSuffix, "--network", network, "--network-alias", svcName + newContainerSuffix}
+	args := []string{"run", "-d", "--name", svcName + suffix, "--network", network, "--network-alias", svcName + suffix}
 
 	for _, env := range service.EnvVars {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", env.Name, env.Value))
