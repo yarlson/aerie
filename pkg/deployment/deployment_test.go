@@ -210,8 +210,9 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 		assert.NoError(suite.T(), err)
 	})
 
+	oldContID := ""
 	suite.Run("Switch Traffic", func() {
-		err = suite.updater.switchTraffic(svsName, network)
+		oldContID, err = suite.updater.switchTraffic(svsName, network)
 		assert.NoError(suite.T(), err)
 
 		newContainerInfo, err := suite.updater.getContainerInfo(svsName, network)
@@ -229,7 +230,7 @@ func (suite *UpdaterTestSuite) TestStartNewContainer_Success() {
 	})
 
 	suite.Run("Cleanup", func() {
-		err := suite.updater.cleanup(svsName, network)
+		err := suite.updater.cleanup(oldContID, svsName)
 		assert.NoError(suite.T(), err)
 
 		output, err := suite.updater.runCommand(context.Background(), "docker", "ps", "-a", "--filter", fmt.Sprintf("name=%s", svsName))
@@ -306,6 +307,113 @@ func (suite *UpdaterTestSuite) TestInstallService() {
 
 	suite.Run("Health Checks", func() {
 		err = suite.updater.performHealthChecks(serviceName, service.HealthCheck)
+		assert.NoError(suite.T(), err)
+	})
+}
+
+func (suite *UpdaterTestSuite) TestUpdateService() {
+	tmpDir := suite.createTempDir()
+	defer os.RemoveAll(tmpDir)
+
+	serviceName := "test-update-service"
+	network := "aerie-test-network"
+
+	initialService := &config.Service{
+		Name:  serviceName,
+		Image: "nginx:1.19",
+		Port:  80,
+		EnvVars: []config.EnvVar{
+			{
+				Name:  "INITIAL_ENV",
+				Value: "initial_value",
+			},
+		},
+		Volumes: []string{
+			tmpDir + ":/initial/path",
+		},
+		HealthCheck: &config.HealthCheck{
+			Path:     "/",
+			Interval: time.Second,
+			Timeout:  time.Second,
+			Retries:  30,
+		},
+	}
+
+	suite.removeContainer(serviceName)
+
+	err := suite.updater.InstallService(initialService, network)
+	assert.NoError(suite.T(), err)
+
+	defer suite.removeContainer(serviceName)
+
+	initialContainerID, err := suite.updater.getContainerID(serviceName, network)
+	assert.NoError(suite.T(), err)
+
+	updatedService := &config.Service{
+		Name:  serviceName,
+		Image: "nginx:1.20",
+		Port:  80,
+		EnvVars: []config.EnvVar{
+			{
+				Name:  "UPDATED_ENV",
+				Value: "updated_value",
+			},
+		},
+		Volumes: []string{
+			tmpDir + ":/updated/path",
+		},
+		HealthCheck: &config.HealthCheck{
+			Path:     "/",
+			Interval: time.Second,
+			Timeout:  time.Second,
+			Retries:  30,
+		},
+	}
+
+	err = suite.updater.UpdateService(updatedService, network)
+	assert.NoError(suite.T(), err)
+
+	var updatedContainerID string
+	for i := 0; i < 30; i++ {
+		updatedContainerID, err = suite.updater.getContainerID(serviceName, network)
+		if err == nil && updatedContainerID != initialContainerID {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+
+	assert.NotEqual(suite.T(), initialContainerID, updatedContainerID)
+
+	containerInfo := suite.inspectContainer(serviceName)
+
+	suite.Run("Updated Container State and Config", func() {
+		assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
+		assert.Contains(suite.T(), containerInfo["Config"].(map[string]interface{})["Image"], "nginx:1.20")
+		assert.Equal(suite.T(), network, containerInfo["HostConfig"].(map[string]interface{})["NetworkMode"])
+	})
+
+	suite.Run("Updated Environment Variables", func() {
+		env := containerInfo["Config"].(map[string]interface{})["Env"].([]interface{})
+		assert.Contains(suite.T(), env, "UPDATED_ENV=updated_value")
+		assert.NotContains(suite.T(), env, "INITIAL_ENV=initial_value")
+	})
+
+	suite.Run("Updated Volume Bindings", func() {
+		binds := containerInfo["HostConfig"].(map[string]interface{})["Binds"].([]interface{})
+		assert.Contains(suite.T(), binds, tmpDir+":/updated/path")
+		assert.NotContains(suite.T(), binds, tmpDir+":/initial/path")
+	})
+
+	suite.Run("Updated Network Aliases", func() {
+		networkSettings := containerInfo["NetworkSettings"].(map[string]interface{})
+		networks := networkSettings["Networks"].(map[string]interface{})
+		networkInfo := networks[network].(map[string]interface{})
+		aliases := networkInfo["Aliases"].([]interface{})
+		assert.Contains(suite.T(), aliases, serviceName)
+	})
+
+	suite.Run("Updated Health Checks", func() {
+		err = suite.updater.performHealthChecks(serviceName, updatedService.HealthCheck)
 		assert.NoError(suite.T(), err)
 	})
 }

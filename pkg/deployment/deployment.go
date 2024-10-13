@@ -62,11 +62,12 @@ func (d *Deployment) UpdateService(service *config.Service, network string) erro
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", svcName, err)
 	}
 
-	if err := d.switchTraffic(svcName, network); err != nil {
+	oldContID, err := d.switchTraffic(svcName, network)
+	if err != nil {
 		return fmt.Errorf("failed to switch traffic for %s: %v", svcName, err)
 	}
 
-	if err := d.cleanup(svcName, network); err != nil {
+	if err := d.cleanup(oldContID, svcName); err != nil {
 		return fmt.Errorf("failed to cleanup for %s: %v", svcName, err)
 	}
 
@@ -168,11 +169,11 @@ func (d *Deployment) performHealthChecks(container string, healthCheck *config.H
 	return fmt.Errorf("container failed to become healthy")
 }
 
-func (d *Deployment) switchTraffic(service, network string) error {
+func (d *Deployment) switchTraffic(service, network string) (string, error) {
 	newContainer := service + newContainerSuffix
 	oldContainer, err := d.getContainerID(service, network)
 	if err != nil {
-		return fmt.Errorf("failed to get old container ID: %v", err)
+		return "", fmt.Errorf("failed to get old container ID: %v", err)
 	}
 
 	cmds := [][]string{
@@ -183,22 +184,17 @@ func (d *Deployment) switchTraffic(service, network string) error {
 
 	for _, cmd := range cmds {
 		if _, err := d.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
-			return fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
+			return "", fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
 		}
 	}
 
-	return nil
+	return oldContainer, nil
 }
 
-func (d *Deployment) cleanup(service, network string) error {
-	oldContainer, err := d.getContainerID(service, network)
-	if err != nil {
-		return fmt.Errorf("failed to get old container ID: %v", err)
-	}
-
+func (d *Deployment) cleanup(oldContID, service string) error {
 	cmds := [][]string{
-		{"docker", "stop", oldContainer},
-		{"docker", "rm", oldContainer},
+		{"docker", "stop", oldContID},
+		{"docker", "rm", oldContID},
 		{"docker", "rename", service + newContainerSuffix, service},
 	}
 
