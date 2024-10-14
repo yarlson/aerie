@@ -124,6 +124,22 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 	defer suite.removeContainer(serviceName)
 	defer suite.removeContainer(proxyName)
 
+	projectPath, err := suite.updater.prepareProjectFolder("test-project")
+	assert.NoError(suite.T(), err)
+
+	proxyCertPath := filepath.Join(projectPath, "fullchain.pem")
+	proxyKeyPath := filepath.Join(projectPath, "privkey.pem")
+	mkcertsCmds := [][]string{
+		{"mkcerts", "-install"},
+		{"mkcerts", "-cert-file", proxyCertPath, "-key-file", proxyKeyPath, "localhost"},
+	}
+
+	for _, cmd := range mkcertsCmds {
+		if _, err := suite.updater.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+			return
+		}
+	}
+
 	proxyCmd := exec.Command("docker", "run", "-d",
 		"--name", proxyName,
 		"--network", network,

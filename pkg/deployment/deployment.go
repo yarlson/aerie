@@ -54,7 +54,7 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 		Image: image,
 		Port:  80,
 		Volumes: []string{
-			"/etc/certificates:/etc/certificates",
+			projectPath + "/certificates:/etc/nginx/ssl",
 			configPath + ":/etc/nginx/nginx.conf",
 		},
 	}
@@ -302,13 +302,15 @@ func (d *Deployment) makeProjectFolder(projectName string) error {
 }
 
 func (d *Deployment) projectFolder(projectName string) (string, error) {
-	projectPath := filepath.Join("$HOME", "projects", projectName)
-	output, err := d.runCommand(context.Background(), "echo", projectPath)
+	homeDir, err := d.runCommand(context.Background(), "sh", "-c", "echo $HOME")
 	if err != nil {
-		return "", fmt.Errorf("failed to get project folder path: %w", err)
+		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	return strings.TrimSpace(output), nil
+	homeDir = strings.TrimSpace(homeDir)
+	projectPath := filepath.Join(homeDir, "projects", projectName)
+
+	return projectPath, nil
 }
 
 func (d *Deployment) prepareProjectFolder(project string) (string, error) {

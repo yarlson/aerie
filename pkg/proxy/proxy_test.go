@@ -68,8 +68,8 @@ http {
         listen 443 ssl http2;
         server_name test.example.com;
 
-        ssl_certificate /etc/certificates/test.example.com/fullchain.pem;
-        ssl_certificate_key /etc/certificates/test.example.com/privkey.pem;
+        ssl_certificate /etc/nginx/ssl/test.example.com/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/test.example.com/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers on;
 
@@ -141,8 +141,8 @@ http {
         listen 443 ssl http2;
         server_name test.example.com;
 
-        ssl_certificate /etc/certificates/test.example.com/fullchain.pem;
-        ssl_certificate_key /etc/certificates/test.example.com/privkey.pem;
+        ssl_certificate /etc/nginx/ssl/test.example.com/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/test.example.com/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers on;
 
@@ -183,8 +183,8 @@ http {
         listen 443 ssl http2;
         server_name localhost;
 
-        ssl_certificate /etc/certificates/localhost/fullchain.pem;
-        ssl_certificate_key /etc/certificates/localhost/privkey.pem;
+        ssl_certificate /etc/nginx/ssl/localhost/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/localhost/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers on;
     }

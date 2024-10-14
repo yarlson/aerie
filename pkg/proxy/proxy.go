@@ -32,8 +32,8 @@ http {
 		listen 443 ssl http2;
 		server_name {{.Project.Domain}};
 
-		ssl_certificate /etc/certificates/{{.Project.Domain}}/fullchain.pem;
-		ssl_certificate_key /etc/certificates/{{.Project.Domain}}/privkey.pem;
+		ssl_certificate /etc/nginx/ssl/{{.Project.Domain}}/fullchain.pem;
+		ssl_certificate_key /etc/nginx/ssl/{{.Project.Domain}}/privkey.pem;
 		ssl_protocols TLSv1.2 TLSv1.3;
 		ssl_prefer_server_ciphers on;
 
