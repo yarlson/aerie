@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/yarlson/aerie/pkg/proxy"
 	"io"
 	"path/filepath"
 	"strings"
@@ -28,22 +29,38 @@ func NewDeployment(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
-func (d *Deployment) StartProxy(network string) error {
-	image := "yarlson/zero-nginx:latest"
+func (d *Deployment) StartProxy(project string, cfg *config.Config, network string) error {
+	const (
+		image     = "yarlson/zero-nginx:latest"
+		proxyName = "proxy"
+	)
+
 	if err := d.pullImage(image); err != nil {
-		return fmt.Errorf("failed to pull image for %s: %v", image, err)
+		return fmt.Errorf("failed to pull image %s: %w", image, err)
+	}
+
+	projectPath, err := d.prepareProjectFolder(project)
+	if err != nil {
+		return fmt.Errorf("failed to prepare project folder: %w", err)
+	}
+
+	configPath, err := d.prepareNginxConfig(cfg, projectPath)
+	if err != nil {
+		return fmt.Errorf("failed to prepare nginx config: %w", err)
 	}
 
 	service := &config.Service{
-		Name:  "proxy",
+		Name:  proxyName,
 		Image: image,
 		Port:  80,
 		Volumes: []string{
 			"/etc/certificates:/etc/certificates",
+			configPath + ":/etc/nginx/nginx.conf",
 		},
 	}
+
 	if err := d.startContainer(service, network, ""); err != nil {
-		return fmt.Errorf("failed to start container for %s: %v", image, err)
+		return fmt.Errorf("failed to start container for %s: %w", image, err)
 	}
 
 	return nil
@@ -292,4 +309,22 @@ func (d *Deployment) projectFolder(projectName string) (string, error) {
 	}
 
 	return strings.TrimSpace(output), nil
+}
+
+func (d *Deployment) prepareProjectFolder(project string) (string, error) {
+	if err := d.makeProjectFolder(project); err != nil {
+		return "", fmt.Errorf("failed to create project folder: %w", err)
+	}
+
+	return d.projectFolder(project)
+}
+
+func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) (string, error) {
+	nginxConfig, err := proxy.GenerateNginxConfig(cfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate nginx config: %w", err)
+	}
+
+	configPath := filepath.Join(projectPath, "nginx.conf")
+	return configPath, d.copyTextFile(nginxConfig, configPath)
 }
