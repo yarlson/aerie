@@ -71,10 +71,20 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 			"80:80",
 			"443:443",
 		},
+		HealthCheck: &config.HealthCheck{
+			Path:     "/",
+			Interval: time.Second,
+			Timeout:  time.Second,
+			Retries:  30,
+		},
 	}
 
 	if err := d.startContainer(service, network, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %w", image, err)
+	}
+
+	if err := d.performHealthChecks(proxyName, service.HealthCheck); err != nil {
+		return fmt.Errorf("failed to perform health checks for %s: %w", proxyName, err)
 	}
 
 	return nil
