@@ -54,8 +54,22 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 		Image: image,
 		Port:  80,
 		Volumes: []string{
-			projectPath + "/certificates:/etc/nginx/ssl",
-			configPath + ":/etc/nginx/nginx.conf",
+			projectPath + "/:/etc/nginx/ssl",
+			configPath + ":/etc/nginx/conf.d/default.conf",
+		},
+		EnvVars: []config.EnvVar{
+			{
+				Name:  "DOMAIN",
+				Value: cfg.Project.Domain,
+			},
+			{
+				Name:  "EMAIL",
+				Value: cfg.Project.Email,
+			},
+		},
+		Forwards: []string{
+			"80:80",
+			"443:443",
 		},
 	}
 

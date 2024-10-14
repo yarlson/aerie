@@ -53,6 +53,7 @@ func (suite *ProxyTestSuite) TestGenerateNginxConfig_Success() {
 	}
 
 	expectedConfig := `
+events {}
 http {
     upstream web {
         server web:80;
@@ -68,8 +69,8 @@ http {
         listen 443 ssl http2;
         server_name test.example.com;
 
-        ssl_certificate /etc/nginx/ssl/test.example.com/fullchain.pem;
-        ssl_certificate_key /etc/nginx/ssl/test.example.com/privkey.pem;
+        ssl_certificate /etc/nginx/ssl/test.example.com.crt;
+        ssl_certificate_key /etc/nginx/ssl/test.example.com.key;
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers on;
 
@@ -122,6 +123,7 @@ func (suite *ProxyTestSuite) TestGenerateNginxConfig_MultipleServices() {
 	}
 
 	expectedConfig := `
+events {}
 http {
     upstream web {
         server web:80;
@@ -141,8 +143,8 @@ http {
         listen 443 ssl http2;
         server_name test.example.com;
 
-        ssl_certificate /etc/nginx/ssl/test.example.com/fullchain.pem;
-        ssl_certificate_key /etc/nginx/ssl/test.example.com/privkey.pem;
+        ssl_certificate /etc/nginx/ssl/test.example.com.crt;
+        ssl_certificate_key /etc/nginx/ssl/test.example.com.key;
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers on;
 
@@ -172,6 +174,7 @@ func (suite *ProxyTestSuite) TestGenerateNginxConfig_EmptyConfig() {
 	cfg := &config.Config{}
 
 	expectedConfig := `
+events {}
 http {
     server {
         listen 80;
@@ -183,8 +186,8 @@ http {
         listen 443 ssl http2;
         server_name localhost;
 
-        ssl_certificate /etc/nginx/ssl/localhost/fullchain.pem;
-        ssl_certificate_key /etc/nginx/ssl/localhost/privkey.pem;
+        ssl_certificate /etc/nginx/ssl/localhost.crt;
+        ssl_certificate_key /etc/nginx/ssl/localhost.key;
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers on;
     }

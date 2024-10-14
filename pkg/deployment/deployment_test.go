@@ -89,10 +89,13 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 	tmpDir := suite.createTempDir()
 	defer os.RemoveAll(tmpDir)
 
-	serviceName := "test-update-service"
-	network := "aerie-test-network"
-	proxyName := "nginx-proxy"
-	proxyPort := "8080"
+	const (
+		project     = "test-project"
+		serviceName = "test-update-service"
+		network     = "aerie-test-network"
+		proxyName   = "nginx-proxy"
+		proxyPort   = "443"
+	)
 
 	initialService := &config.Service{
 		Name:  serviceName,
@@ -124,11 +127,47 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 	defer suite.removeContainer(serviceName)
 	defer suite.removeContainer(proxyName)
 
-	projectPath, err := suite.updater.prepareProjectFolder("test-project")
+	cfg := &config.Config{
+		Project: config.Project{
+			Name:   project,
+			Domain: "localhost",
+			Email:  "test@example.com",
+		},
+		Services: []config.Service{
+			{
+				Name:  serviceName,
+				Image: "nginx:1.20",
+				Port:  80,
+				EnvVars: []config.EnvVar{
+					{
+						Name:  "UPDATED_ENV",
+						Value: "updated_value",
+					},
+				},
+				Volumes: []string{
+					tmpDir + ":/updated/path",
+				},
+				HealthCheck: &config.HealthCheck{
+					Path:     "/",
+					Interval: time.Second,
+					Timeout:  time.Second,
+					Retries:  30,
+				},
+				Routes: []config.Route{
+					{
+						PathPrefix:  "/",
+						StripPrefix: false,
+					},
+				},
+			},
+		},
+	}
+
+	projectPath, err := suite.updater.prepareProjectFolder(project)
 	assert.NoError(suite.T(), err)
 
-	proxyCertPath := filepath.Join(projectPath, "fullchain.pem")
-	proxyKeyPath := filepath.Join(projectPath, "privkey.pem")
+	proxyCertPath := filepath.Join(projectPath, "localhost.crt")
+	proxyKeyPath := filepath.Join(projectPath, "localhost.key")
 	mkcertCmds := [][]string{
 		{"mkcert", "-install"},
 		{"mkcert", "-cert-file", proxyCertPath, "-key-file", proxyKeyPath, "localhost"},
@@ -142,30 +181,11 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 		}
 	}
 
-	proxyCmd := exec.Command("docker", "run", "-d",
-		"--name", proxyName,
-		"--network", network,
-		"-p", proxyPort+":80",
-		"nginx:latest")
-	err = proxyCmd.Run()
+	suite.removeContainer("proxy")
+	err = suite.updater.StartProxy(project, cfg, network)
 	assert.NoError(suite.T(), err)
 
-	proxyConfig := fmt.Sprintf(`
-		events {}
-		http {
-			server {
-				listen 80;
-				location / {
-					resolver 127.0.0.11 valid=1s;
-					set $service %s;
-					proxy_pass http://$service;
-				}
-			}
-		}
-	`, serviceName)
-	configCmd := exec.Command("docker", "exec", proxyName, "bash", "-c", "echo '"+proxyConfig+"' > /etc/nginx/nginx.conf && nginx -s reload")
-	err = configCmd.Run()
-	assert.NoError(suite.T(), err)
+	defer suite.removeContainer("proxy")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -175,6 +195,8 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 		failedRequests int32
 	}{}
 
+	time.Sleep(5 * time.Second)
+
 	for i := 0; i < 10; i++ {
 		go func() {
 			for {
@@ -182,19 +204,15 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 				case <-ctx.Done():
 					return
 				default:
-					resp, err := http.Get("http://localhost:" + proxyPort)
+					resp, err := http.Get("https://localhost:" + proxyPort)
 					atomic.AddInt32(&requestStats.totalRequests, 1)
 					if err != nil || resp.StatusCode != http.StatusOK {
 						atomic.AddInt32(&requestStats.failedRequests, 1)
 					}
 					if resp != nil {
-						if resp.StatusCode != http.StatusOK {
-							b, _ := io.ReadAll(resp.Body)
-							fmt.Println(string(b))
-						}
 						_ = resp.Body.Close()
 					}
-					time.Sleep(1 * time.Millisecond)
+					time.Sleep(10 * time.Millisecond)
 				}
 			}
 		}()
@@ -205,26 +223,7 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 	initialContainerID, err := suite.updater.getContainerID(serviceName, network)
 	assert.NoError(suite.T(), err)
 
-	updatedService := &config.Service{
-		Name:  serviceName,
-		Image: "nginx:1.20",
-		Port:  80,
-		EnvVars: []config.EnvVar{
-			{
-				Name:  "UPDATED_ENV",
-				Value: "updated_value",
-			},
-		},
-		Volumes: []string{
-			tmpDir + ":/updated/path",
-		},
-		HealthCheck: &config.HealthCheck{
-			Path:     "/",
-			Interval: time.Second,
-			Timeout:  time.Second,
-			Retries:  30,
-		},
-	}
+	updatedService := &cfg.Services[0]
 
 	err = suite.updater.UpdateService(updatedService, network)
 	assert.NoError(suite.T(), err)
