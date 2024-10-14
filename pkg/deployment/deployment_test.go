@@ -129,13 +129,15 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 
 	proxyCertPath := filepath.Join(projectPath, "fullchain.pem")
 	proxyKeyPath := filepath.Join(projectPath, "privkey.pem")
-	mkcertsCmds := [][]string{
-		{"mkcerts", "-install"},
-		{"mkcerts", "-cert-file", proxyCertPath, "-key-file", proxyKeyPath, "localhost"},
+	mkcertCmds := [][]string{
+		{"mkcert", "-install"},
+		{"mkcert", "-cert-file", proxyCertPath, "-key-file", proxyKeyPath, "localhost"},
 	}
 
-	for _, cmd := range mkcertsCmds {
-		if _, err := suite.updater.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+	for _, cmd := range mkcertCmds {
+		if output, err := suite.updater.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+			assert.NoError(suite.T(), err)
+			suite.T().Log(output)
 			return
 		}
 	}
