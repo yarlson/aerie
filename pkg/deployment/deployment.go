@@ -275,7 +275,21 @@ func (d *Deployment) copyTextFile(sourceText, destination string) error {
 }
 
 func (d *Deployment) makeProjectFolder(projectName string) error {
-	projectPath := filepath.Join("$HOME", "projects", projectName)
-	_, err := d.runCommand(context.Background(), "mkdir", "-p", projectPath)
+	projectPath, err := d.projectFolder(projectName)
+	if err != nil {
+		return fmt.Errorf("failed to get project folder path: %w", err)
+	}
+
+	_, err = d.runCommand(context.Background(), "mkdir", "-p", projectPath)
 	return err
+}
+
+func (d *Deployment) projectFolder(projectName string) (string, error) {
+	projectPath := filepath.Join("$HOME", "projects", projectName)
+	output, err := d.runCommand(context.Background(), "echo", projectPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get project folder path: %w", err)
+	}
+
+	return strings.TrimSpace(output), nil
 }
