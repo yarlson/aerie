@@ -1,36 +1,48 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
-
+	"github.com/yarlson/aerie/pkg/config"
+	"github.com/yarlson/aerie/pkg/logfmt"
 	"github.com/yarlson/aerie/pkg/setup"
-)
-
-var (
-	host        string
-	port        int
-	defaultUser string
-	newUser     string
-	sshKeyPath  string
-	rootKeyPath string
 )
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Setup a new user, install essential software, and configure UFW on a remote server",
-	Run:   setup.RunSetup,
+	Short: "Setup servers defined in the configuration file",
+	Run:   runSetup,
 }
 
 func init() {
-	setupCmd.Flags().StringVarP(&host, "host", "H", "", "SSH host IP address")
-	setupCmd.Flags().IntVarP(&port, "port", "p", 22, "SSH port")
-	setupCmd.Flags().StringVarP(&defaultUser, "default-user", "d", "", "Default user name")
-	setupCmd.Flags().StringVarP(&newUser, "user", "u", "", "New user to create")
-	setupCmd.Flags().StringVarP(&sshKeyPath, "ssh-key", "k", "", "Path to the SSH public key file for the new user")
-	setupCmd.Flags().StringVarP(&rootKeyPath, "root-key", "r", "", "Path to the root SSH private key file")
-
-	_ = setupCmd.MarkFlagRequired("host")
-	_ = setupCmd.MarkFlagRequired("user")
-
 	rootCmd.AddCommand(setupCmd)
+}
+
+func runSetup(cmd *cobra.Command, args []string) {
+	cfg, err := parseConfig("aerie.yaml")
+	if err != nil {
+		logfmt.ErrPrintln("Failed to parse config file:", err)
+		return
+	}
+
+	for _, server := range cfg.Servers {
+		if err := setupServer(cfg, server); err != nil {
+			logfmt.ErrPrintln(fmt.Sprintf("Failed to setup server %s:", server.Host), err)
+			continue
+		}
+		logfmt.Success(fmt.Sprintf("Successfully set up server %s", server.Host))
+	}
+
+	logfmt.Success("Server setup completed successfully.")
+}
+
+func setupServer(cfg *config.Config, server config.Server) error {
+	logfmt.Info(fmt.Sprintf("Setting up server %s...", server.Host))
+
+	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
+
+	return setup.RunSetup(server, sshKeyPath)
 }
