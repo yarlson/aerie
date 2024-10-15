@@ -34,37 +34,11 @@ func NewDeployment(executor Executor) *Deployment {
 
 func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 	for _, service := range cfg.Services {
-		hash, err := d.pullImage(service.Image)
-		if err != nil {
-			return fmt.Errorf("failed to pull image for %s: %w", service.Name, err)
-		}
-
-		containerInfo, err := d.getContainerInfo(service.Name, network)
-		if err != nil {
-			if err := d.InstallService(&service, network); err != nil {
-				return fmt.Errorf("failed to install service %s: %w", service.Name, err)
-			}
-			continue
-		}
-
-		if hash != containerInfo.Config.Image {
-			if err := d.UpdateService(&service, network); err != nil {
-				return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
-			}
-			continue
-		}
-
-		changed, err := d.serviceChanged(&service, network)
-		if err != nil {
-			return fmt.Errorf("failed to check if service %s has changed: %w", service.Name, err)
-		}
-
-		if changed {
-			if err := d.UpdateService(&service, network); err != nil {
-				return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
-			}
+		if err := d.deployService(&service, network); err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 
@@ -436,4 +410,41 @@ func (d *Deployment) serviceChanged(service *config.Service, network string) (bo
 	}
 
 	return containerInfo.Config.Label["aerie.config-hash"] != hash, nil
+}
+
+func (d *Deployment) deployService(service *config.Service, network string) error {
+	hash, err := d.pullImage(service.Image)
+	if err != nil {
+		return fmt.Errorf("failed to pull image for %s: %w", service.Name, err)
+	}
+
+	containerInfo, err := d.getContainerInfo(service.Name, network)
+	if err != nil {
+		if err := d.InstallService(service, network); err != nil {
+			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
+		}
+
+		return nil
+	}
+
+	if hash != containerInfo.Config.Image {
+		if err := d.UpdateService(service, network); err != nil {
+			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
+		}
+
+		return nil
+	}
+
+	changed, err := d.serviceChanged(service, network)
+	if err != nil {
+		return fmt.Errorf("failed to check if service %s has changed: %w", service.Name, err)
+	}
+
+	if changed {
+		if err := d.UpdateService(service, network); err != nil {
+			return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
+		}
+	}
+
+	return nil
 }
