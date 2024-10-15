@@ -1,60 +1,78 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
-	"github.com/yarlson/aerie/pkg/ssh"
+	"gopkg.in/yaml.v3"
 
+	"github.com/yarlson/aerie/pkg/config"
+	"github.com/yarlson/aerie/pkg/deployment"
 	"github.com/yarlson/aerie/pkg/logfmt"
-)
-
-var (
-	deployHost       string
-	deployUser       string
-	deploySSHKeyPath string
-	appDir           string
+	"github.com/yarlson/aerie/pkg/ssh"
 )
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
-	Short: "Rollout your application seamlessly",
-	Run:   run,
+	Short: "Deploy your application to all configured servers",
+	Run:   runDeploy,
 }
 
-func run(cmd *cobra.Command, args []string) {
-	// Read flags
-	host, _ := cmd.Flags().GetString("host")
-	user, _ := cmd.Flags().GetString("user")
-	sshKeyPath, _ := cmd.Flags().GetString("ssh-key")
+func init() {
+	rootCmd.AddCommand(deployCmd)
+}
 
-	logfmt.Info("Starting service process...")
-
-	if host == "" || user == "" {
-		logfmt.ErrPrintln("Host and user are required for service.")
-		return
-	}
-
-	// Connect to the server
-	logfmt.Info("Connecting to the server...")
-	client, _, err := ssh.FindKeyAndConnectWithUser(host, 0, user, sshKeyPath)
+func runDeploy(cmd *cobra.Command, args []string) {
+	cfg, err := parseConfig("aerie.yaml")
 	if err != nil {
-		logfmt.ErrPrintln("Failed to connect to the server:", err)
+		logfmt.ErrPrintln("Failed to parse config file:", err)
 		return
 	}
-	defer client.Close()
 
-	logfmt.Success("SSH connection to the server established.")
+	networkName := fmt.Sprintf("%s-network", cfg.Project.Name)
+
+	for _, server := range cfg.Servers {
+		if err := deployToServer(cfg, server, networkName); err != nil {
+			logfmt.ErrPrintln(fmt.Sprintf("Failed to deploy to server %s:", server.Host), err)
+			continue
+		}
+		logfmt.Success(fmt.Sprintf("Successfully deployed to server %s", server.Host))
+	}
 
 	logfmt.Success("Deployment completed successfully.")
 }
 
-func init() {
-	deployCmd.Flags().StringVarP(&deployHost, "host", "H", "", "SSH host IP address")
-	deployCmd.Flags().StringVarP(&deployUser, "user", "u", "", "SSH user for deployment")
-	deployCmd.Flags().StringVarP(&deploySSHKeyPath, "ssh-key", "k", "", "Path to the SSH private key file")
-	deployCmd.Flags().StringVarP(&appDir, "app-dir", "d", ".", "Path to your application's directory")
+func parseConfig(filename string) (*config.Config, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
 
-	_ = deployCmd.MarkFlagRequired("host")
-	_ = deployCmd.MarkFlagRequired("user")
+	var cfg config.Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
 
-	rootCmd.AddCommand(deployCmd)
+	return &cfg, nil
+}
+
+func deployToServer(cfg *config.Config, server config.Server, networkName string) error {
+	logfmt.Info(fmt.Sprintf("Deploying to server %s...", server.Host))
+
+	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
+	client, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to server: %w", err)
+	}
+	defer client.Close()
+
+	deploy := deployment.NewDeployment(client)
+
+	if err := deploy.Deploy(cfg, networkName); err != nil {
+		return fmt.Errorf("deployment failed: %w", err)
+	}
+
+	return nil
 }

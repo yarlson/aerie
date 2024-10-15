@@ -33,13 +33,23 @@ func NewDeployment(executor Executor) *Deployment {
 }
 
 func (d *Deployment) Deploy(cfg *config.Config, network string) error {
+	networkExists, err := d.networkExists(network)
+	if err != nil {
+		return fmt.Errorf("failed to check if network networkExists: %w", err)
+	}
+	if !networkExists {
+		if err := d.createNetwork(network); err != nil {
+			return fmt.Errorf("failed to create network: %w", err)
+		}
+	}
+
 	for _, service := range cfg.Services {
 		if err := d.deployService(&service, network); err != nil {
 			return err
 		}
 	}
 
-	err := d.StartProxy(cfg.Project.Name, cfg, network)
+	err = d.StartProxy(cfg.Project.Name, cfg, network)
 	if err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
@@ -439,4 +449,24 @@ func (d *Deployment) deployService(service *config.Service, network string) erro
 	}
 
 	return nil
+}
+
+func (d *Deployment) networkExists(network string) (bool, error) {
+	output, err := d.runCommand(context.Background(), "docker", "network", "ls", "--format", "{{.Name}}")
+	if err != nil {
+		return false, err
+	}
+
+	networks := strings.Fields(output)
+	for _, n := range networks {
+		if n == network {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (d *Deployment) createNetwork(network string) error {
+	_, err := d.runCommand(context.Background(), "docker", "network", "create", network)
+	return err
 }
