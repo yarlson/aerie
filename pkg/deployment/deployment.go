@@ -39,6 +39,11 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 		}
 	}
 
+	err := d.StartProxy(cfg.Project.Name, cfg, network)
+	if err != nil {
+		return fmt.Errorf("failed to start proxy: %w", err)
+	}
+
 	return nil
 }
 
