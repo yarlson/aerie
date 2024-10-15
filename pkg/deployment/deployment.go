@@ -2,6 +2,8 @@ package deployment
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/yarlson/aerie/pkg/proxy"
@@ -142,6 +144,7 @@ type containerInfo struct {
 	ID     string
 	Config struct {
 		Image string
+		Env   []string
 	}
 	NetworkSettings struct {
 		Networks map[string]struct{ Aliases []string }
@@ -216,9 +219,14 @@ func (d *Deployment) startContainer(service *config.Service, network, suffix str
 		}
 	}
 
+	hash, err := ServiceHash(service)
+	if err != nil {
+		return fmt.Errorf("failed to generate config hash: %w", err)
+	}
+	args = append(args, "--label", fmt.Sprintf("aerie.config-hash=%s", hash))
 	args = append(args, service.Image)
 
-	_, err := d.runCommand(context.Background(), "docker", args...)
+	_, err = d.runCommand(context.Background(), "docker", args...)
 	return err
 }
 
@@ -287,7 +295,6 @@ func (d *Deployment) pullImage(imageName string) error {
 	return err
 }
 
-// Helper function to run commands and read output
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
 	output, err := d.executor.RunCommand(ctx, command, args...)
 	if err != nil {
@@ -353,4 +360,14 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 
 	configPath := filepath.Join(projectPath, "nginx.conf")
 	return configPath, d.copyTextFile(nginxConfig, configPath)
+}
+
+func ServiceHash(service *config.Service) (string, error) {
+	bytes, err := json.Marshal(service)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal service: %w", err)
+	}
+
+	hash := sha256.Sum256(bytes)
+	return hex.EncodeToString(hash[:]), nil
 }
