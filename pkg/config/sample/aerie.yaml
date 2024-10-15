@@ -3,6 +3,17 @@ project:
   domain: my-project.example.com
   email: my-project@example.com
 
+servers:
+  - host: my-project.example.com
+    port: 22
+    user: my-project
+    ssh_key: ~/.ssh/id_rsa
+
+  - host: 127.0.0.1
+    port: 22
+    user: my-project
+    ssh_key: ~/.ssh/id_rsa
+
 services:
   - name: my-app
     image: my-app:latest

@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	Project  Project   `yaml:"project" validate:"required"`
+	Servers  []Server  `yaml:"servers" validate:"required,dive"`
 	Services []Service `yaml:"services" validate:"required,dive"`
 	Storages []Storage `yaml:"storages" validate:"required,dive"`
 	Volumes  []Volume  `yaml:"volumes" validate:"required,dive"`
@@ -20,6 +21,13 @@ type Project struct {
 	Name   string `yaml:"name" validate:"required"`
 	Domain string `yaml:"domain" validate:"required,fqdn"`
 	Email  string `yaml:"email" validate:"required,email"`
+}
+
+type Server struct {
+	Host   string `yaml:"host" validate:"required,fqdn|ip"`
+	Port   int    `yaml:"port" validate:"required,min=1,max=65535"`
+	User   string `yaml:"user" validate:"required"`
+	SSHKey string `yaml:"ssh_key" validate:"required,filepath"`
 }
 
 type Service struct {
