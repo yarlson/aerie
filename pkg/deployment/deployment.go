@@ -43,15 +43,6 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 }
 
 func (d *Deployment) StartProxy(project string, cfg *config.Config, network string) error {
-	const (
-		image     = "yarlson/zero-nginx:latest"
-		proxyName = "proxy"
-	)
-
-	if _, err := d.pullImage(image); err != nil {
-		return fmt.Errorf("failed to pull image %s: %w", image, err)
-	}
-
 	projectPath, err := d.prepareProjectFolder(project)
 	if err != nil {
 		return fmt.Errorf("failed to prepare project folder: %w", err)
@@ -63,8 +54,8 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 	}
 
 	service := &config.Service{
-		Name:  proxyName,
-		Image: image,
+		Name:  "proxy",
+		Image: "yarlson/zero-nginx:latest",
 		Port:  80,
 		Volumes: []string{
 			projectPath + "/:/etc/nginx/ssl",
@@ -92,12 +83,8 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 		},
 	}
 
-	if err := d.startContainer(service, network, ""); err != nil {
-		return fmt.Errorf("failed to start container for %s: %w", image, err)
-	}
-
-	if err := d.performHealthChecks(proxyName, service.HealthCheck); err != nil {
-		return fmt.Errorf("failed to perform health checks for %s: %w", proxyName, err)
+	if err := d.deployService(service, network); err != nil {
+		return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 	}
 
 	return nil
