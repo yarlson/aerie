@@ -6,11 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/yarlson/aerie/pkg/proxy"
 	"io"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/yarlson/aerie/pkg/proxy"
 
 	"github.com/yarlson/aerie/pkg/config"
 )
@@ -31,13 +32,49 @@ func NewDeployment(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
+func (d *Deployment) Deploy(cfg *config.Config, network string) error {
+	for _, service := range cfg.Services {
+		hash, err := d.pullImage(service.Image)
+		if err != nil {
+			return fmt.Errorf("failed to pull image for %s: %w", service.Name, err)
+		}
+
+		containerInfo, err := d.getContainerInfo(service.Name, network)
+		if err != nil {
+			if err := d.InstallService(&service, network); err != nil {
+				return fmt.Errorf("failed to install service %s: %w", service.Name, err)
+			}
+			continue
+		}
+
+		if hash != containerInfo.Config.Image {
+			if err := d.UpdateService(&service, network); err != nil {
+				return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
+			}
+			continue
+		}
+
+		changed, err := d.serviceChanged(&service, network)
+		if err != nil {
+			return fmt.Errorf("failed to check if service %s has changed: %w", service.Name, err)
+		}
+
+		if changed {
+			if err := d.UpdateService(&service, network); err != nil {
+				return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
+			}
+		}
+	}
+	return nil
+}
+
 func (d *Deployment) StartProxy(project string, cfg *config.Config, network string) error {
 	const (
 		image     = "yarlson/zero-nginx:latest"
 		proxyName = "proxy"
 	)
 
-	if err := d.pullImage(image); err != nil {
+	if _, err := d.pullImage(image); err != nil {
 		return fmt.Errorf("failed to pull image %s: %w", image, err)
 	}
 
@@ -93,7 +130,7 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 }
 
 func (d *Deployment) InstallService(service *config.Service, network string) error {
-	if err := d.pullImage(service.Image); err != nil {
+	if _, err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
 	}
 
@@ -113,7 +150,7 @@ func (d *Deployment) InstallService(service *config.Service, network string) err
 func (d *Deployment) UpdateService(service *config.Service, network string) error {
 	svcName := service.Name
 
-	if err := d.pullImage(service.Image); err != nil {
+	if _, err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
@@ -145,6 +182,7 @@ type containerInfo struct {
 	Config struct {
 		Image string
 		Env   []string
+		Label map[string]string
 	}
 	NetworkSettings struct {
 		Networks map[string]struct{ Aliases []string }
@@ -290,9 +328,23 @@ func (d *Deployment) cleanup(oldContID, service string) error {
 	return nil
 }
 
-func (d *Deployment) pullImage(imageName string) error {
-	_, err := d.runCommand(context.Background(), "docker", "pull", imageName)
-	return err
+func (d *Deployment) pullImage(imageName string) (string, error) {
+	output, err := d.runCommand(context.Background(), "docker", "pull", imageName)
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "Digest:") {
+			parts := strings.Split(line, ":")
+			if len(parts) >= 3 {
+				return strings.TrimSpace(parts[2]), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("image hash not found in docker pull output")
 }
 
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
@@ -370,4 +422,18 @@ func ServiceHash(service *config.Service) (string, error) {
 
 	hash := sha256.Sum256(bytes)
 	return hex.EncodeToString(hash[:]), nil
+}
+
+func (d *Deployment) serviceChanged(service *config.Service, network string) (bool, error) {
+	containerInfo, err := d.getContainerInfo(service.Name, network)
+	if err != nil {
+		return false, fmt.Errorf("failed to get container info: %w", err)
+	}
+
+	hash, err := ServiceHash(service)
+	if err != nil {
+		return false, fmt.Errorf("failed to generate config hash: %w", err)
+	}
+
+	return containerInfo.Config.Label["aerie.config-hash"] != hash, nil
 }

@@ -53,8 +53,6 @@ func (suite *ProxyTestSuite) TestGenerateNginxConfig_Success() {
 	}
 
 	expectedConfig := `
-events {}
-http {
     upstream web {
         server web:80;
     }
@@ -66,7 +64,8 @@ http {
     }
 
     server {
-        listen 443 ssl http2;
+        listen 443 ssl;
+        http2 on;
         server_name test.example.com;
 
         ssl_certificate /etc/nginx/ssl/test.example.com.crt;
@@ -80,7 +79,6 @@ http {
             proxy_pass http://$service;
         }
     }
-}
 `
 
 	nginxConfig, err := GenerateNginxConfig(cfg)
@@ -123,8 +121,6 @@ func (suite *ProxyTestSuite) TestGenerateNginxConfig_MultipleServices() {
 	}
 
 	expectedConfig := `
-events {}
-http {
     upstream web {
         server web:80;
     }
@@ -140,7 +136,8 @@ http {
     }
 
     server {
-        listen 443 ssl http2;
+        listen 443 ssl;
+        http2 on;
         server_name test.example.com;
 
         ssl_certificate /etc/nginx/ssl/test.example.com.crt;
@@ -161,7 +158,6 @@ http {
             proxy_pass http://$service;
         }
     }
-}
 `
 
 	nginxConfig, err := GenerateNginxConfig(cfg)
@@ -174,8 +170,6 @@ func (suite *ProxyTestSuite) TestGenerateNginxConfig_EmptyConfig() {
 	cfg := &config.Config{}
 
 	expectedConfig := `
-events {}
-http {
     server {
         listen 80;
         server_name localhost;
@@ -183,7 +177,8 @@ http {
     }
 
     server {
-        listen 443 ssl http2;
+        listen 443 ssl;
+        http2 on;
         server_name localhost;
 
         ssl_certificate /etc/nginx/ssl/localhost.crt;
@@ -191,7 +186,6 @@ http {
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_prefer_server_ciphers on;
     }
-}
 `
 
 	nginxConfig, err := GenerateNginxConfig(cfg)
