@@ -1,8 +1,10 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"syscall"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -13,7 +15,7 @@ import (
 )
 
 func RunSetup(server config.Server, sshKeyPath string) error {
-	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, "root", sshKeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
 	}
@@ -21,7 +23,7 @@ func RunSetup(server config.Server, sshKeyPath string) error {
 	logfmt.Success("SSH connection to the server established.")
 
 	fmt.Print("Enter password for new server user: ")
-	newUserPassword, err := term.ReadPassword(int(syscall.Stdin))
+	newUserPassword, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
 		return fmt.Errorf("failed to read new server user password: %w", err)
 	}
@@ -43,22 +45,21 @@ func RunSetup(server config.Server, sshKeyPath string) error {
 		return err
 	}
 
-	logfmt.Success("Server provisioning completed successfully!")
 	return nil
 }
 
 func installServerSoftware(client *sshPkg.Client) error {
 	commands := []string{
-		"sudo apt-get update",
-		"sudo apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
-		"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -",
-		"sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" -y",
-		"sudo apt-get update",
-		"sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
+		"apt-get update",
+		"apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
+		"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -",
+		"add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" -y",
+		"apt-get update",
+		"apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
 	}
 
 	return client.RunCommandWithProgress(
-		"Provisioning server with essential software and Docker...",
+		"Provisioning server with essential software...",
 		"Essential software and Docker installed successfully.",
 		commands,
 	)
@@ -66,33 +67,51 @@ func installServerSoftware(client *sshPkg.Client) error {
 
 func configureServerFirewall(client *sshPkg.Client) error {
 	commands := []string{
-		"sudo apt-get install -y ufw",
-		"sudo ufw default deny incoming",
-		"sudo ufw default allow outgoing",
-		"sudo ufw allow 22/tcp",
-		"sudo ufw allow 80/tcp",
-		"sudo ufw allow 443/tcp",
-		"echo 'y' | sudo ufw enable",
+		"apt-get install -y ufw",
+		"ufw default deny incoming",
+		"ufw default allow outgoing",
+		"ufw allow 22/tcp",
+		"ufw allow 80/tcp",
+		"ufw allow 443/tcp",
+		"echo 'y' | ufw enable",
 	}
 
 	return client.RunCommandWithProgress(
-		"Configuring server firewall (UFW)...",
+		"Configuring server firewall...",
 		"Server firewall configured successfully.",
 		commands,
 	)
 }
 
 func createServerUser(client *sshPkg.Client, newUser, password string) error {
-	commands := []string{
-		fmt.Sprintf("sudo adduser --gecos '' --disabled-password %s", newUser),
-		fmt.Sprintf("echo '%s:%s' | sudo chpasswd", newUser, password),
-		fmt.Sprintf("sudo usermod -aG docker %s", newUser),
+	checkUserCmd := fmt.Sprintf("id -u %s > /dev/null 2>&1", newUser)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := client.RunCommand(ctx, checkUserCmd)
+	if err == nil {
+		logfmt.Warning(fmt.Sprintf("User %s already exists. Skipping user creation.", newUser))
+	} else {
+		commands := []string{
+			fmt.Sprintf("adduser --gecos '' --disabled-password %s", newUser),
+			fmt.Sprintf("echo '%s:%s' | chpasswd", newUser, password),
+		}
+
+		err := client.RunCommandWithProgress(
+			fmt.Sprintf("Creating user %s...", newUser),
+			fmt.Sprintf("User %s created successfully.", newUser),
+			commands,
+		)
+		if err != nil {
+			return err
+		}
 	}
 
+	addToDockerCmd := fmt.Sprintf("usermod -aG docker %s", newUser)
 	return client.RunCommandWithProgress(
-		fmt.Sprintf("Creating user %s and adding to Docker group...", newUser),
-		fmt.Sprintf("User %s created and added to Docker group successfully.", newUser),
-		commands,
+		fmt.Sprintf("Adding user %s to Docker group...", newUser),
+		fmt.Sprintf("User %s added to Docker group successfully.", newUser),
+		[]string{addToDockerCmd},
 	)
 }
 
@@ -104,11 +123,11 @@ func setupServerSSHKey(client *sshPkg.Client, newUser string, userKey []byte) er
 	userPubKeyString := string(ssh.MarshalAuthorizedKey(userPubKey.PublicKey()))
 
 	commands := []string{
-		fmt.Sprintf("sudo mkdir -p /home/%s/.ssh", newUser),
-		fmt.Sprintf("echo '%s' | sudo tee -a /home/%s/.ssh/authorized_keys", userPubKeyString, newUser),
-		fmt.Sprintf("sudo chown -R %s:%s /home/%s/.ssh", newUser, newUser, newUser),
-		fmt.Sprintf("sudo chmod 700 /home/%s/.ssh", newUser),
-		fmt.Sprintf("sudo chmod 600 /home/%s/.ssh/authorized_keys", newUser),
+		fmt.Sprintf("mkdir -p /home/%s/.ssh", newUser),
+		fmt.Sprintf("echo '%s' | tee -a /home/%s/.ssh/authorized_keys", userPubKeyString, newUser),
+		fmt.Sprintf("chown -R %s:%s /home/%s/.ssh", newUser, newUser, newUser),
+		fmt.Sprintf("chmod 700 /home/%s/.ssh", newUser),
+		fmt.Sprintf("chmod 600 /home/%s/.ssh/authorized_keys", newUser),
 	}
 
 	return client.RunCommandWithProgress(
