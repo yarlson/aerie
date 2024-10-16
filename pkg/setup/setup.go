@@ -14,7 +14,7 @@ import (
 	sshPkg "github.com/yarlson/aerie/pkg/ssh"
 )
 
-func RunSetup(server config.Server, sshKeyPath string) error {
+func RunSetup(ctx context.Context, server config.Server, sshKeyPath string) error {
 	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, "root", sshKeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
@@ -29,26 +29,26 @@ func RunSetup(server config.Server, sshKeyPath string) error {
 	}
 	logfmt.Success("\nServer user password received.")
 
-	if err := installServerSoftware(client); err != nil {
+	if err := installServerSoftware(ctx, client); err != nil {
 		return err
 	}
 
-	if err := configureServerFirewall(client); err != nil {
+	if err := configureServerFirewall(ctx, client); err != nil {
 		return err
 	}
 
-	if err := createServerUser(client, server.User, string(newUserPassword)); err != nil {
+	if err := createServerUser(ctx, client, server.User, string(newUserPassword)); err != nil {
 		return err
 	}
 
-	if err := setupServerSSHKey(client, server.User, rootKey); err != nil {
+	if err := setupServerSSHKey(ctx, client, server.User, rootKey); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func installServerSoftware(client *sshPkg.Client) error {
+func installServerSoftware(ctx context.Context, client *sshPkg.Client) error {
 	commands := []string{
 		"apt-get update",
 		"apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
@@ -59,13 +59,14 @@ func installServerSoftware(client *sshPkg.Client) error {
 	}
 
 	return client.RunCommandWithProgress(
+		ctx,
 		"Provisioning server with essential software...",
 		"Essential software and Docker installed successfully.",
 		commands,
 	)
 }
 
-func configureServerFirewall(client *sshPkg.Client) error {
+func configureServerFirewall(ctx context.Context, client *sshPkg.Client) error {
 	commands := []string{
 		"apt-get install -y ufw",
 		"ufw default deny incoming",
@@ -77,18 +78,19 @@ func configureServerFirewall(client *sshPkg.Client) error {
 	}
 
 	return client.RunCommandWithProgress(
+		ctx,
 		"Configuring server firewall...",
 		"Server firewall configured successfully.",
 		commands,
 	)
 }
 
-func createServerUser(client *sshPkg.Client, newUser, password string) error {
+func createServerUser(ctx context.Context, client *sshPkg.Client, newUser, password string) error {
 	checkUserCmd := fmt.Sprintf("id -u %s > /dev/null 2>&1", newUser)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := client.RunCommand(ctx, checkUserCmd)
+	_, err := client.RunCommand(checkCtx, checkUserCmd)
 	if err == nil {
 		logfmt.Warning(fmt.Sprintf("User %s already exists. Skipping user creation.", newUser))
 	} else {
@@ -98,6 +100,7 @@ func createServerUser(client *sshPkg.Client, newUser, password string) error {
 		}
 
 		err := client.RunCommandWithProgress(
+			ctx,
 			fmt.Sprintf("Creating user %s...", newUser),
 			fmt.Sprintf("User %s created successfully.", newUser),
 			commands,
@@ -109,13 +112,14 @@ func createServerUser(client *sshPkg.Client, newUser, password string) error {
 
 	addToDockerCmd := fmt.Sprintf("usermod -aG docker %s", newUser)
 	return client.RunCommandWithProgress(
+		ctx,
 		fmt.Sprintf("Adding user %s to Docker group...", newUser),
 		fmt.Sprintf("User %s added to Docker group successfully.", newUser),
 		[]string{addToDockerCmd},
 	)
 }
 
-func setupServerSSHKey(client *sshPkg.Client, newUser string, userKey []byte) error {
+func setupServerSSHKey(ctx context.Context, client *sshPkg.Client, newUser string, userKey []byte) error {
 	userPubKey, err := ssh.ParsePrivateKey(userKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse user private key for server access: %w", err)
@@ -131,6 +135,7 @@ func setupServerSSHKey(client *sshPkg.Client, newUser string, userKey []byte) er
 	}
 
 	return client.RunCommandWithProgress(
+		ctx,
 		"Configuring SSH access for the new user...",
 		"SSH access configured successfully.",
 		commands,

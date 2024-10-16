@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/yarlson/aerie/pkg/config"
@@ -46,5 +48,8 @@ func setupServer(server config.Server) error {
 
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
 
-	return setup.RunSetup(server, sshKeyPath)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	return setup.RunSetup(ctx, server, sshKeyPath)
 }

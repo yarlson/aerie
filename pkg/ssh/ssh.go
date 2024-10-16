@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+
 	"github.com/fatih/color"
 	"golang.org/x/crypto/ssh"
 )
@@ -85,46 +86,89 @@ func (c *Client) RunCommand(ctx context.Context, command string, args ...string)
 	return pr, nil
 }
 
-func (c *Client) RunCommandWithProgress(initialMsg, completeMsg string, commands []string) error {
-	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond) // Braille spinner
+func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, completeMsg string, commands []string) error {
+	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 	s.Suffix = " " + initialMsg
 	_ = s.Color("yellow")
 	s.Start()
 
+	defer func() {
+		s.Stop()
+		fmt.Print("\r")
+		fmt.Print(strings.Repeat(" ", len(s.Suffix)+3))
+		fmt.Print("\r")
+	}()
+
 	for _, command := range commands {
-		session, err := c.NewSession()
-		if err != nil {
-			s.Stop()
-			return err
-		}
-
-		output, err := session.CombinedOutput(command)
-		session.Close()
-		if err != nil {
-			s.Stop()
-
-			errorMessage := fmt.Sprintf(
-				"\n%s Command failed: %s\n%s %v\n%s\n%s",
-				color.New(color.FgRed).SprintFunc()("X"),
-				color.New(color.FgYellow).SprintFunc()(command),
-				color.New(color.FgRed).SprintFunc()("Error:"),
-				err,
-				color.New(color.FgRed).SprintFunc()("Output:"),
-				string(output),
-			)
-
-			fmt.Println(errorMessage)
-
-			return fmt.Errorf("command failed: %v", err)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			err := c.runSingleCommand(ctx, command)
+			if err != nil {
+				s.Stop()
+				errorMessage := fmt.Sprintf(
+					"\n%s Command failed: %s\n%s %v\n",
+					color.New(color.FgRed).SprintFunc()("X"),
+					color.New(color.FgYellow).SprintFunc()(command),
+					color.New(color.FgRed).SprintFunc()("Error:"),
+					err,
+				)
+				fmt.Println(errorMessage)
+				return fmt.Errorf("command failed: %w", err)
+			}
 		}
 	}
 
 	s.Stop()
-
+	fmt.Print("\r")
+	fmt.Print(strings.Repeat(" ", len(s.Suffix)+3))
+	fmt.Print("\r")
 	checkMark := color.New(color.FgGreen).SprintFunc()("√")
 	fmt.Printf("%s %s\n", checkMark, completeMsg)
 
 	return nil
+}
+
+func (c *Client) runSingleCommand(ctx context.Context, command string) error {
+	session, err := c.NewSession()
+	if err != nil {
+		return fmt.Errorf("unable to create session: %w", err)
+	}
+	defer session.Close()
+
+	pr, pw := io.Pipe()
+	defer pr.Close()
+
+	session.Stdout = pw
+	session.Stderr = pw
+
+	if err := session.Start(command); err != nil {
+		return fmt.Errorf("failed to start command: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- session.Wait()
+		pw.Close()
+	}()
+
+	var output strings.Builder
+
+	go func() {
+		_, _ = io.Copy(&output, pr)
+	}()
+
+	select {
+	case <-ctx.Done():
+		_ = session.Signal(ssh.SIGTERM)
+		return ctx.Err()
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("%w\nOutput: %s", err, output.String())
+		}
+		return nil
+	}
 }
 
 func (c *Client) RunCommandOutput(command string) (string, error) {
