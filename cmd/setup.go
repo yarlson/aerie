@@ -29,7 +29,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	}
 
 	for _, server := range cfg.Servers {
-		if err := setupServer(cfg, server); err != nil {
+		if err := setupServer(server); err != nil {
 			logfmt.ErrPrintln(fmt.Sprintf("Failed to setup server %s:", server.Host), err)
 			continue
 		}
@@ -39,7 +39,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	logfmt.Success("Server setup completed successfully.")
 }
 
-func setupServer(cfg *config.Config, server config.Server) error {
+func setupServer(server config.Server) error {
 	logfmt.Info(fmt.Sprintf("Setting up server %s...", server.Host))
 
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
