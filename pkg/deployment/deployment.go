@@ -33,14 +33,8 @@ func NewDeployment(executor Executor) *Deployment {
 }
 
 func (d *Deployment) Deploy(cfg *config.Config, network string) error {
-	networkExists, err := d.networkExists(network)
-	if err != nil {
-		return fmt.Errorf("failed to check if network networkExists: %w", err)
-	}
-	if !networkExists {
-		if err := d.createNetwork(network); err != nil {
-			return fmt.Errorf("failed to create network: %w", err)
-		}
+	if err := d.createNetwork(network); err != nil {
+		return fmt.Errorf("failed to create network: %w", err)
 	}
 
 	for _, service := range cfg.Services {
@@ -49,7 +43,7 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 		}
 	}
 
-	err = d.StartProxy(cfg.Project.Name, cfg, network)
+	err := d.StartProxy(cfg.Project.Name, cfg, network)
 	if err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
@@ -221,7 +215,7 @@ func (d *Deployment) startContainer(service *config.Service, network, suffix str
 	}
 
 	if service.HealthCheck != nil {
-		args = append(args, "--health-cmd", fmt.Sprintf("curl -f http://localhost:%d/%s || exit 1", service.Port, service.HealthCheck.Path))
+		args = append(args, "--health-cmd", fmt.Sprintf("\"curl -f http://localhost:%d/%s || exit 1\"", service.Port, service.HealthCheck.Path))
 		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
 		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
 		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
@@ -325,17 +319,18 @@ func (d *Deployment) pullImage(imageName string) (string, error) {
 
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
 	output, err := d.executor.RunCommand(ctx, command, args...)
-	if err != nil {
-		return "", err
+	outputBytes, readErr := io.ReadAll(output)
+	if readErr != nil {
+		return "", fmt.Errorf("failed to read command output: %v (original error: %w)", readErr, err)
 	}
 
-	var outputBuilder strings.Builder
-	_, err = io.Copy(&outputBuilder, output)
+	result := strings.TrimSpace(string(outputBytes))
+
 	if err != nil {
-		return "", fmt.Errorf("failed to read command output: %w", err)
+		return result, fmt.Errorf("command failed: %w", err)
 	}
 
-	return outputBuilder.String(), nil
+	return result, nil
 }
 
 func (d *Deployment) copyTextFile(sourceText, destination string) error {
@@ -454,12 +449,12 @@ func (d *Deployment) deployService(service *config.Service, network string) erro
 func (d *Deployment) networkExists(network string) (bool, error) {
 	output, err := d.runCommand(context.Background(), "docker", "network", "ls", "--format", "{{.Name}}")
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to list Docker networks: %w", err)
 	}
 
-	networks := strings.Fields(output)
+	networks := strings.Split(strings.TrimSpace(output), "\n")
 	for _, n := range networks {
-		if n == network {
+		if strings.TrimSpace(n) == network {
 			return true, nil
 		}
 	}
@@ -467,6 +462,19 @@ func (d *Deployment) networkExists(network string) (bool, error) {
 }
 
 func (d *Deployment) createNetwork(network string) error {
-	_, err := d.runCommand(context.Background(), "docker", "network", "create", network)
-	return err
+	exists, err := d.networkExists(network)
+	if err != nil {
+		return fmt.Errorf("failed to check if network exists: %w", err)
+	}
+
+	if exists {
+		return nil
+	}
+
+	_, err = d.runCommand(context.Background(), "docker", "network", "create", network)
+	if err != nil {
+		return fmt.Errorf("failed to create network: %w", err)
+	}
+
+	return nil
 }

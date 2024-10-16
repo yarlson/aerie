@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -16,7 +17,9 @@ import (
 )
 
 type Client struct {
-	*ssh.Client
+	sshClient *ssh.Client
+	config    *ssh.ClientConfig
+	addr      string
 }
 
 func ConnectWithUser(host string, port int, user string, key []byte) (*Client, error) {
@@ -34,19 +37,59 @@ func ConnectWithUser(host string, port int, user string, key []byte) (*Client, e
 		Timeout:         10 * time.Second,
 	}
 
-	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), config)
+	addr := fmt.Sprintf("%s:%d", host, port)
+
+	client, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
 
-	return &Client{client}, nil
+	return &Client{
+		sshClient: client,
+		config:    config,
+		addr:      addr,
+	}, nil
+}
+
+func (c *Client) ensureConnected() error {
+	if c.sshClient != nil {
+		_, _, err := c.sshClient.SendRequest("keepalive@golang.org", true, nil)
+		if err == nil {
+			return nil
+		}
+	}
+
+	var err error
+	for i := 0; i < 3; i++ {
+		c.sshClient, err = ssh.Dial("tcp", c.addr, c.config)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(time.Second * time.Duration(i+1))
+	}
+	return fmt.Errorf("failed to re-establish SSH connection after 3 attempts")
+}
+
+func (c *Client) Close() error {
+	if c.sshClient == nil {
+		return nil
+	}
+
+	err := c.sshClient.Close()
+	c.sshClient = nil
+	return err
 }
 
 func (c *Client) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
-	session, err := c.NewSession()
+	if err := c.ensureConnected(); err != nil {
+		return nil, err
+	}
+
+	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create session: %v", err)
 	}
+	defer session.Close()
 
 	fullCommand := command
 	if len(args) > 0 {
@@ -55,35 +98,46 @@ func (c *Client) RunCommand(ctx context.Context, command string, args ...string)
 
 	pr, pw := io.Pipe()
 
+	session.Stdout = pw
+	session.Stderr = pw
+
+	if err := session.Start(fullCommand); err != nil {
+		pw.Close()
+		return nil, fmt.Errorf("failed to start command: %w", err)
+	}
+
+	done := make(chan error, 1)
 	go func() {
-		defer pw.Close()
-		defer session.Close()
-
-		session.Stdout = pw
-		session.Stderr = pw
-
-		if err := session.Start(fullCommand); err != nil {
-			_ = pw.CloseWithError(fmt.Errorf("failed to start command: %v", err))
-			return
-		}
-
-		done := make(chan error, 1)
-		go func() {
-			done <- session.Wait()
-		}()
-
-		select {
-		case <-ctx.Done():
-			_ = session.Signal(ssh.SIGTERM)
-			_ = pw.CloseWithError(ctx.Err())
-		case err := <-done:
-			if err != nil {
-				_ = pw.CloseWithError(fmt.Errorf("command failed: %v", err))
-			}
-		}
+		done <- session.Wait()
+		pw.Close()
 	}()
 
-	return pr, nil
+	var output bytes.Buffer
+	outputChan := make(chan struct{})
+
+	go func() {
+		_, _ = io.Copy(&output, pr)
+		close(outputChan)
+	}()
+
+	var commandErr error
+	select {
+	case <-ctx.Done():
+		_ = session.Signal(ssh.SIGTERM)
+		commandErr = ctx.Err()
+	case err := <-done:
+		if err != nil {
+			commandErr = fmt.Errorf("command failed: %w", err)
+		}
+	}
+
+	<-outputChan
+
+	if commandErr != nil {
+		return bytes.NewReader(output.Bytes()), commandErr
+	}
+
+	return bytes.NewReader(output.Bytes()), nil
 }
 
 func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, completeMsg string, commands []string) error {
@@ -131,7 +185,7 @@ func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, complet
 }
 
 func (c *Client) runSingleCommand(ctx context.Context, command string) error {
-	session, err := c.NewSession()
+	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("unable to create session: %w", err)
 	}
@@ -172,7 +226,7 @@ func (c *Client) runSingleCommand(ctx context.Context, command string) error {
 }
 
 func (c *Client) RunCommandOutput(command string) (string, error) {
-	session, err := c.NewSession()
+	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
 	}
