@@ -16,8 +16,11 @@ import (
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
-	Short: "Deploy your application to all configured servers",
-	Run:   runDeploy,
+	Short: "Deploy your application to configured servers",
+	Long: `Deploy your application to all servers defined in aerie.yaml.
+This command handles the entire deployment process, ensuring
+zero-downtime updates of your services.`,
+	Run: runDeploy,
 }
 
 func init() {

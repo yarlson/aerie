@@ -13,8 +13,10 @@ import (
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Setup servers defined in the configuration file",
-	Run:   runSetup,
+	Short: "Prepare servers for deployment",
+	Long: `Setup configures servers defined in aerie.yaml for deployment.
+Run this once for each new server before deploying your application.`,
+	Run: runSetup,
 }
 
 func init() {
