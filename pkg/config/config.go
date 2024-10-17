@@ -17,7 +17,7 @@ type Config struct {
 	Servers  []Server  `yaml:"servers" validate:"required,dive"`
 	Services []Service `yaml:"services" validate:"required,dive"`
 	Storages []Storage `yaml:"storages" validate:"dive"`
-	Volumes  []Volume  `yaml:"volumes" validate:"dive"`
+	Volumes  []string  `yaml:"volumes" validate:"dive"`
 }
 
 type Project struct {

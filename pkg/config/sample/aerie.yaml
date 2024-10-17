@@ -35,5 +35,4 @@ storages:
       - my-app-storage:/var/www/html/storage
 
 volumes:
-  - name: my-app-storage
-    path: /var/www/html/storage
+  - my-app-storage

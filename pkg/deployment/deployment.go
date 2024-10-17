@@ -37,6 +37,12 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
 
+	for _, volume := range cfg.Volumes {
+		if err := d.createVolume(volume); err != nil {
+			return fmt.Errorf("failed to create volume: %w", err)
+		}
+	}
+
 	for _, service := range cfg.Services {
 		if err := d.deployService(&service, network); err != nil {
 			return err
@@ -215,7 +221,7 @@ func (d *Deployment) startContainer(service *config.Service, network, suffix str
 	}
 
 	if service.HealthCheck != nil {
-		args = append(args, "--health-cmd", fmt.Sprintf("curl -f http://localhost:%d/%s || exit 1", service.Port, service.HealthCheck.Path))
+		args = append(args, "--health-cmd", fmt.Sprintf("curl -f http://localhost:%d%s || exit 1", service.Port, service.HealthCheck.Path))
 		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
 		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
 		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
@@ -474,6 +480,19 @@ func (d *Deployment) createNetwork(network string) error {
 	_, err = d.runCommand(context.Background(), "docker", "network", "create", network)
 	if err != nil {
 		return fmt.Errorf("failed to create network: %w", err)
+	}
+
+	return nil
+}
+
+func (d *Deployment) createVolume(volume string) error {
+	if _, err := d.runCommand(context.Background(), "docker", "volume", "inspect", volume); err == nil {
+		return nil
+	}
+
+	_, err := d.runCommand(context.Background(), "docker", "volume", "create", volume)
+	if err != nil {
+		return fmt.Errorf("failed to create volume: %w", err)
 	}
 
 	return nil

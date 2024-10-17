@@ -42,8 +42,7 @@ func (suite *ConfigTestSuite) TestParseConfig_Success() {
 	assert.Len(suite.T(), config.Storages[0].Volumes, 1)
 	assert.Equal(suite.T(), "my-app-storage:/var/www/html/storage", config.Storages[0].Volumes[0])
 	assert.Len(suite.T(), config.Volumes, 1)
-	assert.Equal(suite.T(), "my-app-storage", config.Volumes[0].Name)
-	assert.Equal(suite.T(), "/var/www/html/storage", config.Volumes[0].Path)
+	assert.Equal(suite.T(), "my-app-storage", config.Volumes[0])
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_InvalidYAML() {
@@ -87,8 +86,7 @@ storages:
     volumes:
       - "db_data:/var/lib/postgresql/data"
 volumes:
-  - name: "db_data"
-    path: "/data/db"
+  - db_data
 `)
 
 	config, err := ParseConfig(yamlData)
@@ -118,8 +116,7 @@ storages:
     volumes:
       - "db_data:/var/lib/postgresql/data"
 volumes:
-  - name: "db_data"
-    path: "/data/db"
+  - db_data
 `)
 
 	config, err := ParseConfig(yamlData)
@@ -128,37 +125,6 @@ volumes:
 	assert.Nil(suite.T(), config)
 	assert.Contains(suite.T(), err.Error(), "validation error")
 	assert.Contains(suite.T(), err.Error(), "Project.Email")
-}
-
-func (suite *ConfigTestSuite) TestParseConfig_InvalidVolumePath() {
-	yamlData := []byte(`
-project:
-  name: "test-project"
-  domain: "example.com"
-  email: "test@example.com"
-services:
-  - name: "web"
-    image: "nginx:latest"
-    routes:
-      - path: "/"
-        strip_prefix: true
-        port: 80
-storages:
-  - name: "db"
-    image: "postgres:13"
-    volumes:
-      - "db_data:/var/lib/postgresql/data"
-volumes:
-  - name: "db_data"
-    path: "invalid_path"
-`)
-
-	config, err := ParseConfig(yamlData)
-
-	assert.Error(suite.T(), err)
-	assert.Nil(suite.T(), config)
-	assert.Contains(suite.T(), err.Error(), "validation error")
-	assert.Contains(suite.T(), err.Error(), "Config.Volumes[0].Path")
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_InvalidVolumeReference() {
@@ -180,8 +146,7 @@ storages:
     volumes:
       - "invalid_volume_reference"
 volumes:
-  - name: "db_data"
-    path: "/data/db"
+  - db_data
 `)
 
 	config, err := ParseConfig(yamlData)
