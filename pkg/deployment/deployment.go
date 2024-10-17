@@ -172,7 +172,7 @@ func (d *Deployment) getContainerID(service, network string) (string, error) {
 }
 
 func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, error) {
-	output, err := d.runCommand(context.Background(), "docker", "ps", "-q", "--filter", fmt.Sprintf("network=%s", network))
+	output, err := d.runCommand(context.Background(), "docker", "ps", "-aq", "--filter", fmt.Sprintf("network=%s", network))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container IDs: %w", err)
 	}
