@@ -37,7 +37,7 @@ type Service struct {
 	Name        string       `yaml:"name" validate:"required"`
 	Image       string       `yaml:"image" validate:"required"`
 	Port        int          `yaml:"port" validate:"required,min=1,max=65535"`
-	Path        string       `yaml:"path" validate:"filepath"`
+	Path        string       `yaml:"path" validate:"unix_path"`
 	HealthCheck *HealthCheck `yaml:"health_check"`
 	Routes      []Route      `yaml:"routes" validate:"required,dive"`
 	Volumes     []string     `yaml:"volumes" validate:"dive,volume_reference"`
@@ -91,7 +91,7 @@ func ParseConfig(data []byte) (*Config, error) {
 
 	_ = validate.RegisterValidation("unix_path", func(fl validator.FieldLevel) bool {
 		value := fl.Field().String()
-		return strings.HasPrefix(value, "/")
+		return strings.HasPrefix(value, "/") || value == ""
 	})
 
 	if err := validate.Struct(config); err != nil {
