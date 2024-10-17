@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
-
 	"github.com/yarlson/aerie/pkg/config"
 	"github.com/yarlson/aerie/pkg/deployment"
 	"github.com/yarlson/aerie/pkg/logfmt"
@@ -53,12 +51,7 @@ func parseConfig(filename string) (*config.Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	var cfg config.Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	return &cfg, nil
+	return config.ParseConfig(data)
 }
 
 func deployToServer(cfg *config.Config, server config.Server, networkName string) error {

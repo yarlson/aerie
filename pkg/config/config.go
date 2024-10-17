@@ -13,8 +13,8 @@ type Config struct {
 	Project  Project   `yaml:"project" validate:"required"`
 	Servers  []Server  `yaml:"servers" validate:"required,dive"`
 	Services []Service `yaml:"services" validate:"required,dive"`
-	Storages []Storage `yaml:"storages" validate:"required,dive"`
-	Volumes  []Volume  `yaml:"volumes" validate:"required,dive"`
+	Storages []Storage `yaml:"storages" validate:"dive"`
+	Volumes  []Volume  `yaml:"volumes" validate:"dive"`
 }
 
 type Project struct {
