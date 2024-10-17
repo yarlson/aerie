@@ -2,14 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-
 	"github.com/spf13/cobra"
 	"github.com/yarlson/aerie/pkg/config"
 	"github.com/yarlson/aerie/pkg/deployment"
 	"github.com/yarlson/aerie/pkg/logfmt"
 	"github.com/yarlson/aerie/pkg/ssh"
+	"os"
+	"path/filepath"
 )
 
 var deployCmd = &cobra.Command{
@@ -51,7 +50,12 @@ func parseConfig(filename string) (*config.Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	return config.ParseConfig(data)
+	cfg, err := config.ParseConfig(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return cfg, nil
 }
 
 func deployToServer(cfg *config.Config, server config.Server, networkName string) error {

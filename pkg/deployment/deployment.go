@@ -215,7 +215,7 @@ func (d *Deployment) startContainer(service *config.Service, network, suffix str
 	}
 
 	if service.HealthCheck != nil {
-		args = append(args, "--health-cmd", fmt.Sprintf("\"curl -f http://localhost:%d/%s || exit 1\"", service.Port, service.HealthCheck.Path))
+		args = append(args, "--health-cmd", fmt.Sprintf("curl -f http://localhost:%d/%s || exit 1", service.Port, service.HealthCheck.Path))
 		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
 		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
 		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
