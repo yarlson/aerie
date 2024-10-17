@@ -93,7 +93,11 @@ func (c *Client) RunCommand(ctx context.Context, command string, args ...string)
 
 	fullCommand := command
 	if len(args) > 0 {
-		fullCommand += " " + strings.Join(args, " ")
+		var quotedArgs []string
+		for _, arg := range args {
+			quotedArgs = append(quotedArgs, fmt.Sprintf("%q", arg))
+		}
+		fullCommand += " " + strings.Join(quotedArgs, " ")
 	}
 
 	pr, pw := io.Pipe()

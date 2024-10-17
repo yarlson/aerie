@@ -16,7 +16,7 @@ servers:
 
 services:
   - name: my-app
-    path: my-app
+    path: ./my-app
     image: my-app:latest
     port: 80
     health_check:
