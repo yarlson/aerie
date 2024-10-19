@@ -173,10 +173,11 @@ func (d *Deployment) UpdateService(service *config.Service, network string) erro
 type containerInfo struct {
 	ID     string
 	Config struct {
-		Image string
-		Env   []string
-		Label map[string]string
+		Image  string
+		Env    []string
+		Labels map[string]string
 	}
+	Image           string
 	NetworkSettings struct {
 		Networks map[string]struct{ Aliases []string }
 	}
@@ -322,22 +323,17 @@ func (d *Deployment) cleanup(oldContID, service string) error {
 }
 
 func (d *Deployment) pullImage(imageName string) (string, error) {
-	output, err := d.runCommand(context.Background(), "docker", "pull", imageName)
+	_, err := d.runCommand(context.Background(), "docker", "pull", imageName)
 	if err != nil {
 		return "", err
 	}
 
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "Digest:") {
-			parts := strings.Split(line, ":")
-			if len(parts) >= 3 {
-				return strings.TrimSpace(parts[2]), nil
-			}
-		}
+	output, err := d.runCommand(context.Background(), "docker", "images", "--no-trunc", "--format={{.ID}}", imageName)
+	if err != nil {
+		return "", err
 	}
 
-	return "", fmt.Errorf("image hash not found in docker pull output")
+	return strings.TrimSpace(output), nil
 }
 
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
@@ -434,7 +430,10 @@ func (d *Deployment) serviceChanged(service *config.Service, network string) (bo
 		return false, fmt.Errorf("failed to generate config hash: %w", err)
 	}
 
-	return containerInfo.Config.Label["aerie.config-hash"] != hash, nil
+	logfmt.Info(fmt.Sprintf("Old config hash: %s", containerInfo.Config.Labels["aerie.config-hash"]))
+	logfmt.Info(fmt.Sprintf("New config hash: %s", hash))
+
+	return containerInfo.Config.Labels["aerie.config-hash"] != hash, nil
 }
 
 func (d *Deployment) deployService(service *config.Service, network string) error {
@@ -452,7 +451,9 @@ func (d *Deployment) deployService(service *config.Service, network string) erro
 		return nil
 	}
 
-	if hash != containerInfo.Config.Image {
+	if hash != containerInfo.Image {
+		logfmt.Info(fmt.Sprintf("Old image hash: %s", containerInfo.Image))
+		logfmt.Info(fmt.Sprintf("New image hash: %s", hash))
 		if err := d.UpdateService(service, network); err != nil {
 			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
 		}
