@@ -22,9 +22,12 @@ func NewBuild(executor Executor) *Build {
 }
 
 func (b *Build) Build(ctx context.Context, image string, path string) error {
-	if err := console.ProgressSpinner(context.Background(), "Building image", "Image built", []func() error{
-		func() error { return b.buildImage(ctx, image, path) },
-	}); err != nil {
+	if err := console.ProgressSpinner(
+		context.Background(),
+		fmt.Sprintf("Building image %s", image), fmt.Sprintf("Image %s built", image),
+		[]func() error{
+			func() error { return b.buildImage(ctx, image, path) },
+		}); err != nil {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
 
@@ -41,9 +44,13 @@ func (b *Build) buildImage(ctx context.Context, image, path string) error {
 }
 
 func (b *Build) Push(ctx context.Context, image string) error {
-	if err := console.ProgressSpinner(context.Background(), "Pushing image", "Image pushed", []func() error{
-		func() error { return b.pushImage(ctx, image) },
-	}); err != nil {
+	if err := console.ProgressSpinner(
+		context.Background(),
+		fmt.Sprintf("Pushing image %s", image),
+		fmt.Sprintf("Image %s pushed", image),
+		[]func() error{
+			func() error { return b.pushImage(ctx, image) },
+		}); err != nil {
 		return fmt.Errorf("failed to push image: %w", err)
 	}
 

@@ -15,6 +15,7 @@ var (
 	Success    = color.New(color.FgGreen).PrintlnFunc()
 	Warning    = color.New(color.FgYellow).PrintlnFunc()
 	ErrPrintln = color.New(color.FgRed).PrintlnFunc()
+	ErrPrintf  = color.New(color.FgRed).PrintfFunc()
 )
 
 func ProgressSpinner(ctx context.Context, initialMsg, completeMsg string, operations []func() error) error {
