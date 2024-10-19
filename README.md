@@ -1,8 +1,29 @@
 # 🚀 FTL
 
-FTL (Faster Than Light) is a powerful deployment tool that simplifies the process of setting up servers and deploying applications. It's designed to make deployment easy and reliable, even for developers who aren't experts in server management or advanced deployment techniques.
+FTL (Faster Than Light) is a powerful deployment tool designed specifically for developers who want to deploy their applications to popular cloud providers like **Hetzner**, **DigitalOcean**, **Linode**, or even **Raspberry Pi** and other servers but aren't sure where to start. FTL simplifies the process of setting up servers and deploying applications, making deployment easy and reliable, even for those who aren't experts in server management or advanced deployment techniques.
 
-## Key Features
+## 📌 Table of Contents
+
+- [🚀 FTL](#-ftl)
+  - [📌 Table of Contents](#-table-of-contents)
+  - [🔑 Key Features](#-key-features)
+  - [💻 Installation](#-installation)
+    - [Option 1: Install from Source](#option-1-install-from-source)
+    - [Option 2: Download Binary from GitHub](#option-2-download-binary-from-github)
+    - [Option 3: Install via Homebrew (macOS and Linux)](#option-3-install-via-homebrew-macos-and-linux)
+  - [⚙️ Configuration](#️-configuration)
+  - [🚀 Usage](#-usage)
+    - [Setup](#setup)
+    - [Build](#build)
+    - [Deploy](#deploy)
+  - [🔄 How FTL Deploys Your Application](#-how-ftl-deploys-your-application)
+  - [🌟 Benefits of FTL's Deployment Process](#-benefits-of-ftls-deployment-process)
+  - [🛠️ Development](#️-development)
+    - [Contributing](#contributing)
+    - [Code of Conduct](#code-of-conduct)
+  - [📄 License](#-license)
+
+## 🔑 Key Features
 
 - **Simple Configuration**: Define your entire infrastructure in a single YAML file.
 - **Automated Server Setup**: Quickly provision new servers with all necessary software.
@@ -11,13 +32,13 @@ FTL (Faster Than Light) is a powerful deployment tool that simplifies the proces
 - **Automatic HTTPS**: Built-in Nginx proxy handles SSL/TLS certificate management.
 - **Build Management**: Build and push Docker images for your services.
 
-## Installation
+## 💻 Installation
 
 There are several ways to install FTL:
 
 ### Option 1: Install from Source
 
-To install FTL from source, you need to have Go installed on your system. Then, you can use the following command:
+To install FTL from source, you need to have [Go](https://golang.org/dl/) installed on your system. Then, you can use the following command:
 
 ```bash
 go install github.com/yarlson/ftl@latest
@@ -48,7 +69,7 @@ brew tap yarlson/ftl
 brew install ftl
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 Create an `ftl.yaml` file in your project root. Here's an example:
 
@@ -104,10 +125,11 @@ ftl setup
 
 This command:
 
-1. Installs essential software and Docker
-2. Configures the server firewall
-3. Creates a new user and adds them to the Docker group
-4. Sets up SSH access for the new user
+1. Creates a new server on your chosen provider (Hetzner, DigitalOcean, Linode) or prepares your custom server (e.g., Raspberry Pi).
+2. Installs Docker and other necessary software.
+3. Sets up firewall rules to secure your server.
+4. Adds a new user and grants them the necessary permissions.
+5. Configures SSH keys for secure access.
 
 Run this command once for each new server before deploying.
 
@@ -121,9 +143,9 @@ ftl build
 
 This command:
 
-1. Reads the `ftl.yaml` configuration file
-2. Builds Docker images for each service defined in the configuration
-3. Pushes the built images to the specified Docker registry
+1. Parses your project and service definitions.
+2. Constructs Docker images for each service defined in the configuration.
+3. Uploads the built images to your specified Docker registry.
 
 You can use the `--no-push` flag to build images without pushing them to the registry:
 
@@ -139,19 +161,29 @@ The `deploy` command is where the magic happens. It deploys your application to 
 ftl deploy
 ```
 
-## How FTL Deploys Your Application
+This command:
+
+1. Parses the `ftl.yaml` file to understand your infrastructure.
+2. Establishes secure SSH connections to each server.
+3. Creates dedicated Docker networks for your project.
+4. Ensures the latest Docker images are available on the servers.
+5. Performs Zero-Downtime Deployment:
+   - Starts new containers with updated images.
+   - Conducts health checks to verify readiness.
+   - Switches traffic to the new containers once healthy.
+   - Gracefully stops and removes old containers.
+6. Sets up Nginx as a reverse proxy to handle SSL/TLS and route traffic.
+7. Removes any unused resources to maintain server hygiene.
+
+## 🔄 How FTL Deploys Your Application
 
 FTL uses a sophisticated deployment process to ensure your application is always available, even during updates. Here's what happens when you run `ftl deploy`:
 
-1. **Configuration Parsing**: FTL reads your `ftl.yaml` file to understand your infrastructure.
-
-2. **Server Connection**: It securely connects to each server using SSH.
-
-3. **Docker Network Creation**: A dedicated Docker network is created for your project, ensuring proper isolation.
-
-4. **Image Pulling**: The latest versions of your Docker images are pulled to ensure you're deploying the most recent code.
-
-5. **Zero-Downtime Deployment**: For each service:
+1. FTL reads your `ftl.yaml` file to understand your infrastructure.
+2. It securely connects to each server using SSH.
+3. A dedicated Docker network is created for your project, ensuring proper isolation.
+4. The latest versions of your Docker images are pulled to ensure you're deploying the most recent code.
+5. For each service:
 
    - A new container is started with the updated image and configuration.
    - Health checks are performed to ensure the new container is ready.
@@ -160,21 +192,21 @@ FTL uses a sophisticated deployment process to ensure your application is always
 
    This process ensures that your application remains available throughout the update.
 
-6. **Proxy Configuration**: An Nginx proxy is automatically configured to route traffic to your services, handle SSL/TLS, and provide automatic HTTPS.
-
-7. **Cleanup**: Any unused resources are cleaned up to keep your server tidy.
+6. An Nginx proxy is automatically configured to route traffic to your services, handle SSL/TLS, and provide automatic HTTPS.
+7. Any unused resources are cleaned up to keep your server tidy.
 
 The entire process is automatic and requires no manual intervention. You can deploy updates as frequently as needed without worrying about downtime or complex deployment procedures.
 
-## Benefits of FTL's Deployment Process
+## 🌟 Benefits of FTL's Deployment Process
 
 - **No Downtime**: Your application remains available during updates.
 - **Automatic Rollback**: If a new version fails health checks, the old version continues to run.
 - **Consistency**: Every deployment follows the same process, reducing the chance of errors.
 - **Simplicity**: Complex deployment logic is handled for you, so you can focus on developing your application.
 - **Scalability**: Easily deploy to multiple servers or add new services as your project grows.
+- **Multi-Target Flexibility**: Choose between Hetzner, DigitalOcean, Linode, Raspberry Pi, or any other SSH-accessible server based on your needs and preferences.
 
-## Development
+## 🛠️ Development
 
 To contribute to FTL, clone the repository and install the dependencies:
 
@@ -190,6 +222,14 @@ Run the tests:
 go test ./...
 ```
 
-## License
+### Contributing
+
+We welcome contributions! Whether it's reporting bugs, suggesting features, or submitting pull requests, your help is invaluable. Please ensure that your code follows the project's coding standards and that all tests pass before submitting.
+
+## 📄 License
 
 [MIT License](LICENSE)
+
+---
+
+Feel free to reach out or open an issue on our [GitHub repository](https://github.com/yarlson/ftl) if you have any questions or need assistance getting started with FTL!
