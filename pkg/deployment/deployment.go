@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -410,13 +412,57 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 }
 
 func ServiceHash(service *config.Service) (string, error) {
-	bytes, err := json.Marshal(service)
+	sortedService := sortServiceFields(service)
+	bytes, err := json.Marshal(sortedService)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal service: %w", err)
+		return "", fmt.Errorf("failed to marshal sorted service: %w", err)
 	}
 
 	hash := sha256.Sum256(bytes)
 	return hex.EncodeToString(hash[:]), nil
+}
+
+func sortServiceFields(service *config.Service) map[string]interface{} {
+	sorted := make(map[string]interface{})
+	v := reflect.ValueOf(*service)
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		value := v.Field(i).Interface()
+
+		switch reflect.TypeOf(value).Kind() {
+		case reflect.Slice:
+			s := reflect.ValueOf(value)
+			sorted[field.Name] = sortSlice(s)
+		case reflect.Map:
+			m := reflect.ValueOf(value)
+			sorted[field.Name] = sortMap(m)
+		default:
+			sorted[field.Name] = value
+		}
+	}
+
+	return sorted
+}
+
+func sortSlice(s reflect.Value) []interface{} {
+	sorted := make([]interface{}, s.Len())
+	for i := 0; i < s.Len(); i++ {
+		sorted[i] = s.Index(i).Interface()
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return fmt.Sprintf("%v", sorted[i]) < fmt.Sprintf("%v", sorted[j])
+	})
+	return sorted
+}
+
+func sortMap(m reflect.Value) map[string]interface{} {
+	sorted := make(map[string]interface{})
+	for _, key := range m.MapKeys() {
+		sorted[key.String()] = m.MapIndex(key).Interface()
+	}
+	return sorted
 }
 
 func (d *Deployment) serviceChanged(service *config.Service, network string) (bool, error) {
@@ -429,9 +475,6 @@ func (d *Deployment) serviceChanged(service *config.Service, network string) (bo
 	if err != nil {
 		return false, fmt.Errorf("failed to generate config hash: %w", err)
 	}
-
-	logfmt.Info(fmt.Sprintf("Old config hash: %s", containerInfo.Config.Labels["aerie.config-hash"]))
-	logfmt.Info(fmt.Sprintf("New config hash: %s", hash))
 
 	return containerInfo.Config.Labels["aerie.config-hash"] != hash, nil
 }
@@ -452,8 +495,6 @@ func (d *Deployment) deployService(service *config.Service, network string) erro
 	}
 
 	if hash != containerInfo.Image {
-		logfmt.Info(fmt.Sprintf("Old image hash: %s", containerInfo.Image))
-		logfmt.Info(fmt.Sprintf("New image hash: %s", hash))
 		if err := d.UpdateService(service, network); err != nil {
 			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
 		}
