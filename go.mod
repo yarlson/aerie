@@ -1,4 +1,4 @@
-module github.com/yarlson/aerie
+module github.com/yarlson/ftl
 
 go 1.23
 

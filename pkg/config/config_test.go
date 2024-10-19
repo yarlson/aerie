@@ -18,7 +18,7 @@ func TestConfigSuite(t *testing.T) {
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_Success() {
-	yamlPath := filepath.Join("sample", "aerie.yaml")
+	yamlPath := filepath.Join("sample", "ftl.yaml")
 	yamlData, err := os.ReadFile(yamlPath)
 	assert.NoError(suite.T(), err)
 

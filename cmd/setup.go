@@ -8,15 +8,15 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/yarlson/aerie/pkg/config"
-	"github.com/yarlson/aerie/pkg/logfmt"
-	"github.com/yarlson/aerie/pkg/setup"
+	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/setup"
 )
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Prepare servers for deployment",
-	Long: `Setup configures servers defined in aerie.yaml for deployment.
+	Long: `Setup configures servers defined in ftl.yaml for deployment.
 Run this once for each new server before deploying your application.`,
 	Run: runSetup,
 }
@@ -26,7 +26,7 @@ func init() {
 }
 
 func runSetup(cmd *cobra.Command, args []string) {
-	cfg, err := parseConfig("aerie.yaml")
+	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
 		logfmt.ErrPrintln("Failed to parse config file:", err)
 		return

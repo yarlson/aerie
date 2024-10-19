@@ -6,16 +6,16 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/yarlson/aerie/pkg/config"
-	"github.com/yarlson/aerie/pkg/deployment"
-	"github.com/yarlson/aerie/pkg/logfmt"
-	"github.com/yarlson/aerie/pkg/ssh"
+	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/deployment"
+	"github.com/yarlson/ftl/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/ssh"
 )
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy your application to configured servers",
-	Long: `Deploy your application to all servers defined in aerie.yaml.
+	Long: `Deploy your application to all servers defined in ftl.yaml.
 This command handles the entire deployment process, ensuring
 zero-downtime updates of your services.`,
 	Run: runDeploy,
@@ -26,7 +26,7 @@ func init() {
 }
 
 func runDeploy(cmd *cobra.Command, args []string) {
-	cfg, err := parseConfig("aerie.yaml")
+	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
 		logfmt.ErrPrintln("Failed to parse config file:", err)
 		return

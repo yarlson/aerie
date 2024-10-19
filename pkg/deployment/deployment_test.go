@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/yarlson/aerie/pkg/config"
+	"github.com/yarlson/ftl/pkg/config"
 )
 
 type DeploymentTestSuite struct {
@@ -53,7 +53,7 @@ func (e *LocalExecutor) CopyFile(ctx context.Context, src, dst string) error {
 }
 
 func (suite *DeploymentTestSuite) SetupSuite() {
-	suite.network = "aerie-test-network"
+	suite.network = "ftl-test-network"
 	_ = exec.Command("docker", "network", "create", suite.network).Run()
 }
 
@@ -97,7 +97,7 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 	const (
 		project     = "test-project"
 		serviceName = "test-update-service"
-		network     = "aerie-test-network"
+		network     = "ftl-test-network"
 		proxyName   = "nginx-proxy"
 		proxyPort   = "443"
 	)

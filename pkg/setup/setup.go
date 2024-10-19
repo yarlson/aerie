@@ -9,9 +9,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 
-	"github.com/yarlson/aerie/pkg/config"
-	"github.com/yarlson/aerie/pkg/logfmt"
-	sshPkg "github.com/yarlson/aerie/pkg/ssh"
+	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/logfmt"
+	sshPkg "github.com/yarlson/ftl/pkg/ssh"
 )
 
 func RunSetup(ctx context.Context, server config.Server, sshKeyPath string) error {

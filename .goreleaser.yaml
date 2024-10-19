@@ -1,9 +1,9 @@
 version: 2
 
-project_name: aerie
+project_name: ftl
 
 builds:
-  - id: aerie
+  - id: ftl
     main: ./main.go
     goos:
       - linux
@@ -25,7 +25,7 @@ archives:
 release:
   github:
     owner: yarlson
-    name: aerie
+    name: ftl
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"

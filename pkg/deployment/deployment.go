@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yarlson/aerie/pkg/config"
-	"github.com/yarlson/aerie/pkg/logfmt"
-	"github.com/yarlson/aerie/pkg/proxy"
+	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/proxy"
 )
 
 const (
@@ -257,7 +257,7 @@ func (d *Deployment) startContainer(service *config.Service, network, suffix str
 	if err != nil {
 		return fmt.Errorf("failed to generate config hash: %w", err)
 	}
-	args = append(args, "--label", fmt.Sprintf("aerie.config-hash=%s", hash))
+	args = append(args, "--label", fmt.Sprintf("ftl.config-hash=%s", hash))
 	args = append(args, service.Image)
 
 	_, err = d.runCommand(context.Background(), "docker", args...)
@@ -476,7 +476,7 @@ func (d *Deployment) serviceChanged(service *config.Service, network string) (bo
 		return false, fmt.Errorf("failed to generate config hash: %w", err)
 	}
 
-	return containerInfo.Config.Labels["aerie.config-hash"] != hash, nil
+	return containerInfo.Config.Labels["ftl.config-hash"] != hash, nil
 }
 
 func (d *Deployment) deployService(service *config.Service, network string) error {

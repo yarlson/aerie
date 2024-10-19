@@ -5,12 +5,14 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "aerie",
-	Short: "Aerie - Simplified server setup and application deployment",
-	Long: `Aerie simplifies server setup and application deployment.
-It provides zero-downtime deployments with automatic HTTPS.
+	Use:   "ftl",
+	Short: "FTL - Faster Than Light deployment tool",
+	Long: `FTL (Faster Than Light) is a powerful deployment tool that simplifies 
+the process of setting up servers and deploying applications. It's designed 
+to make deployment easy and reliable, even for developers who aren't experts 
+in server management or advanced deployment techniques.
 
-Use 'aerie [command] --help' for more information about a command.`,
+Use 'ftl [command] --help' for more information about a command.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

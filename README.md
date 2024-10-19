@@ -1,6 +1,6 @@
-# Aerie
+# FTL
 
-Aerie is a powerful deployment tool that simplifies the process of setting up servers and deploying applications. It's designed to make deployment easy and reliable, even for developers who aren't experts in server management or advanced deployment techniques.
+FTL (Faster Than Light) is a powerful deployment tool that simplifies the process of setting up servers and deploying applications. It's designed to make deployment easy and reliable, even for developers who aren't experts in server management or advanced deployment techniques.
 
 ## Key Features
 
@@ -12,15 +12,15 @@ Aerie is a powerful deployment tool that simplifies the process of setting up se
 
 ## Installation
 
-To install Aerie, you need to have Go installed on your system. Then, you can use the following command:
+To install FTL, you need to have Go installed on your system. Then, you can use the following command:
 
 ```bash
-go install github.com/yarlson/aerie@latest
+go install github.com/yarlson/ftl@latest
 ```
 
 ## Configuration
 
-Create an `aerie.yaml` file in your project root. Here's an example:
+Create an `ftl.yaml` file in your project root. Here's an example:
 
 ```yaml
 project:
@@ -62,14 +62,14 @@ This configuration defines your project, servers, services, and storage requirem
 
 ## Usage
 
-Aerie provides two main commands: `setup` and `deploy`.
+FTL provides two main commands: `setup` and `deploy`.
 
 ### Setup
 
 The `setup` command prepares your servers for deployment:
 
 ```bash
-aerie setup
+ftl setup
 ```
 
 This command:
@@ -86,14 +86,14 @@ Run this command once for each new server before deploying.
 The `deploy` command is where the magic happens. It deploys your application to all configured servers:
 
 ```bash
-aerie deploy
+ftl deploy
 ```
 
-## How Aerie Deploys Your Application
+## How FTL Deploys Your Application
 
-Aerie uses a sophisticated deployment process to ensure your application is always available, even during updates. Here's what happens when you run `aerie deploy`:
+FTL uses a sophisticated deployment process to ensure your application is always available, even during updates. Here's what happens when you run `ftl deploy`:
 
-1. **Configuration Parsing**: Aerie reads your `aerie.yaml` file to understand your infrastructure.
+1. **Configuration Parsing**: FTL reads your `ftl.yaml` file to understand your infrastructure.
 
 2. **Server Connection**: It securely connects to each server using SSH.
 
@@ -116,7 +116,7 @@ Aerie uses a sophisticated deployment process to ensure your application is alwa
 
 The entire process is automatic and requires no manual intervention. You can deploy updates as frequently as needed without worrying about downtime or complex deployment procedures.
 
-## Benefits of Aerie's Deployment Process
+## Benefits of FTL's Deployment Process
 
 - **No Downtime**: Your application remains available during updates.
 - **Automatic Rollback**: If a new version fails health checks, the old version continues to run.
@@ -126,11 +126,11 @@ The entire process is automatic and requires no manual intervention. You can dep
 
 ## Development
 
-To contribute to Aerie, clone the repository and install the dependencies:
+To contribute to FTL, clone the repository and install the dependencies:
 
 ```bash
-git clone https://github.com/yarlson/aerie.git
-cd aerie
+git clone https://github.com/yarlson/ftl.git
+cd ftl
 go mod download
 ```
 

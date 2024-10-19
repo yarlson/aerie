@@ -13,7 +13,7 @@ import (
 	"github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/yarlson/aerie/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/logfmt"
 )
 
 type Client struct {
