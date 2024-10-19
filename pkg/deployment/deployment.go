@@ -35,24 +35,39 @@ func NewDeployment(executor Executor) *Deployment {
 }
 
 func (d *Deployment) Deploy(cfg *config.Config, network string) error {
-	if err := d.createNetwork(network); err != nil {
+	if err := logfmt.ProgressSpinner(context.Background(), "Creating network", "Network created", []func() error{
+		func() error { return d.createNetwork(network) },
+	}); err != nil {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
 
-	for _, volume := range cfg.Volumes {
-		if err := d.createVolume(volume); err != nil {
-			return fmt.Errorf("failed to create volume: %w", err)
-		}
+	if err := logfmt.ProgressSpinner(context.Background(), "Creating volumes", "Volumes created", []func() error{
+		func() error {
+			for _, volume := range cfg.Volumes {
+				if err := d.createVolume(volume); err != nil {
+					return fmt.Errorf("failed to create volume: %w", err)
+				}
+			}
+			return nil
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to create volumes: %w", err)
 	}
 
 	for _, service := range cfg.Services {
-		if err := d.deployService(&service, network); err != nil {
-			return err
+		if err := logfmt.ProgressSpinner(context.Background(),
+			fmt.Sprintf("Deploying service: %s", service.Name),
+			fmt.Sprintf("Service deployed: %s", service.Name),
+			[]func() error{
+				func() error { return d.deployService(&service, network) },
+			}); err != nil {
+			return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 		}
 	}
 
-	err := d.StartProxy(cfg.Project.Name, cfg, network)
-	if err != nil {
+	if err := logfmt.ProgressSpinner(context.Background(), "Starting proxy", "Proxy started", []func() error{
+		func() error { return d.StartProxy(cfg.Project.Name, cfg, network) },
+	}); err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
 
@@ -378,7 +393,6 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 	}
 
 	nginxConfig = strings.TrimSpace(nginxConfig)
-	logfmt.Info(nginxConfig)
 
 	configPath := filepath.Join(projectPath, "nginx")
 	_, err = d.runCommand(context.Background(), "mkdir", "-p", configPath)
