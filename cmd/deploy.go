@@ -9,7 +9,7 @@ import (
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
-	"github.com/yarlson/ftl/pkg/ssh"
+	"github.com/yarlson/ftl/pkg/executor/ssh"
 )
 
 var deployCmd = &cobra.Command{

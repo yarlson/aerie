@@ -11,7 +11,7 @@ import (
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
-	sshPkg "github.com/yarlson/ftl/pkg/ssh"
+	sshPkg "github.com/yarlson/ftl/pkg/executor/ssh"
 )
 
 func RunSetup(ctx context.Context, server config.Server, sshKeyPath string) error {
