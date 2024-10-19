@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
-	"github.com/yarlson/ftl/pkg/logfmt"
 	"github.com/yarlson/ftl/pkg/ssh"
 )
 
@@ -28,7 +28,7 @@ func init() {
 func runDeploy(cmd *cobra.Command, args []string) {
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		logfmt.ErrPrintln("Failed to parse config file:", err)
+		console.ErrPrintln("Failed to parse config file:", err)
 		return
 	}
 
@@ -36,13 +36,13 @@ func runDeploy(cmd *cobra.Command, args []string) {
 
 	for _, server := range cfg.Servers {
 		if err := deployToServer(cfg, server, networkName); err != nil {
-			logfmt.ErrPrintln(fmt.Sprintf("Failed to deploy to server %s:", server.Host), err)
+			console.ErrPrintln(fmt.Sprintf("Failed to deploy to server %s:", server.Host), err)
 			continue
 		}
-		logfmt.Success(fmt.Sprintf("Successfully deployed to server %s", server.Host))
+		console.Success(fmt.Sprintf("Successfully deployed to server %s", server.Host))
 	}
 
-	logfmt.Success("Deployment completed successfully.")
+	console.Success("Deployment completed successfully.")
 }
 
 func parseConfig(filename string) (*config.Config, error) {
@@ -60,7 +60,7 @@ func parseConfig(filename string) (*config.Config, error) {
 }
 
 func deployToServer(cfg *config.Config, server config.Server, networkName string) error {
-	logfmt.Info(fmt.Sprintf("Deploying to server %s...", server.Host))
+	console.Info(fmt.Sprintf("Deploying to server %s...", server.Host))
 
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
 	client, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/yarlson/ftl/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/console"
 )
 
 type Executor interface {
@@ -21,14 +21,14 @@ func NewBuild(executor Executor) *Build {
 }
 
 func (b *Build) Build(ctx context.Context, image string, path string) error {
-	err := logfmt.ProgressSpinner(ctx, "Building image", "Image built", []func() error{
+	err := console.ProgressSpinner(ctx, "Building image", "Image built", []func() error{
 		func() error { return b.buildImage(ctx, image, path) },
 	})
 	if err != nil {
 		return fmt.Errorf("failed to build image: %w", err)
 	}
 
-	err = logfmt.ProgressSpinner(ctx, "Pushing image", "Image pushed", []func() error{
+	err = console.ProgressSpinner(ctx, "Pushing image", "Image pushed", []func() error{
 		func() error { return b.pushImage(ctx, image) },
 	})
 	if err != nil {

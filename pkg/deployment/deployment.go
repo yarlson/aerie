@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/proxy"
 )
 
@@ -37,13 +37,13 @@ func NewDeployment(executor Executor) *Deployment {
 }
 
 func (d *Deployment) Deploy(cfg *config.Config, network string) error {
-	if err := logfmt.ProgressSpinner(context.Background(), "Creating network", "Network created", []func() error{
+	if err := console.ProgressSpinner(context.Background(), "Creating network", "Network created", []func() error{
 		func() error { return d.createNetwork(network) },
 	}); err != nil {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
 
-	if err := logfmt.ProgressSpinner(context.Background(), "Creating volumes", "Volumes created", []func() error{
+	if err := console.ProgressSpinner(context.Background(), "Creating volumes", "Volumes created", []func() error{
 		func() error {
 			for _, volume := range cfg.Volumes {
 				if err := d.createVolume(volume); err != nil {
@@ -57,7 +57,7 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 	}
 
 	for _, service := range cfg.Services {
-		if err := logfmt.ProgressSpinner(context.Background(),
+		if err := console.ProgressSpinner(context.Background(),
 			fmt.Sprintf("Deploying service: %s", service.Name),
 			fmt.Sprintf("Service deployed: %s", service.Name),
 			[]func() error{
@@ -67,7 +67,7 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 		}
 	}
 
-	if err := logfmt.ProgressSpinner(context.Background(), "Starting proxy", "Proxy started", []func() error{
+	if err := console.ProgressSpinner(context.Background(), "Starting proxy", "Proxy started", []func() error{
 		func() error { return d.StartProxy(cfg.Project.Name, cfg, network) },
 	}); err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)

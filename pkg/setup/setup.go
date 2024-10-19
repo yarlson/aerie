@@ -10,7 +10,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/console"
 	sshPkg "github.com/yarlson/ftl/pkg/ssh"
 )
 
@@ -20,14 +20,14 @@ func RunSetup(ctx context.Context, server config.Server, sshKeyPath string) erro
 		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
 	}
 	defer client.Close()
-	logfmt.Success("SSH connection to the server established.")
+	console.Success("SSH connection to the server established.")
 
 	fmt.Print("Enter password for new server user: ")
 	newUserPassword, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return fmt.Errorf("failed to read new server user password: %w", err)
 	}
-	logfmt.Success("\nServer user password received.")
+	console.Success("\nServer user password received.")
 
 	if err := installServerSoftware(ctx, client); err != nil {
 		return err
@@ -92,7 +92,7 @@ func createServerUser(ctx context.Context, client *sshPkg.Client, newUser, passw
 
 	_, err := client.RunCommand(checkCtx, checkUserCmd)
 	if err == nil {
-		logfmt.Warning(fmt.Sprintf("User %s already exists. Skipping user creation.", newUser))
+		console.Warning(fmt.Sprintf("User %s already exists. Skipping user creation.", newUser))
 	} else {
 		commands := []string{
 			fmt.Sprintf("adduser --gecos '' --disabled-password %s", newUser),

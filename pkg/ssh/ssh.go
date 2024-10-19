@@ -13,7 +13,7 @@ import (
 	"github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/yarlson/ftl/pkg/logfmt"
+	"github.com/yarlson/ftl/pkg/console"
 )
 
 type Client struct {
@@ -171,7 +171,7 @@ func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, complet
 		}
 	}
 
-	return logfmt.ProgressSpinner(ctx, initialMsg, completeMsg, operations)
+	return console.ProgressSpinner(ctx, initialMsg, completeMsg, operations)
 }
 
 func (c *Client) runSingleCommand(ctx context.Context, command string) error {

@@ -1,4 +1,4 @@
-package logfmt
+package console
 
 import (
 	"context"
