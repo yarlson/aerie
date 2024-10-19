@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
-	"github.com/briandowns/spinner"
-	"github.com/fatih/color"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/yarlson/aerie/pkg/logfmt"
 )
 
 type Client struct {
@@ -163,47 +163,15 @@ func (c *Client) CopyFile(ctx context.Context, src, dst string) error {
 }
 
 func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, completeMsg string, commands []string) error {
-	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-	s.Suffix = " " + initialMsg
-	_ = s.Color("yellow")
-	s.Start()
-
-	defer func() {
-		s.Stop()
-		fmt.Print("\r")
-		fmt.Print(strings.Repeat(" ", len(s.Suffix)+3))
-		fmt.Print("\r")
-	}()
-
-	for _, command := range commands {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			err := c.runSingleCommand(ctx, command)
-			if err != nil {
-				s.Stop()
-				errorMessage := fmt.Sprintf(
-					"\n%s Command failed: %s\n%s %v\n",
-					color.New(color.FgRed).SprintFunc()("X"),
-					color.New(color.FgYellow).SprintFunc()(command),
-					color.New(color.FgRed).SprintFunc()("Error:"),
-					err,
-				)
-				fmt.Println(errorMessage)
-				return fmt.Errorf("command failed: %w", err)
-			}
+	operations := make([]func() error, len(commands))
+	for i, command := range commands {
+		cmd := command // Create a new variable to avoid closure issues
+		operations[i] = func() error {
+			return c.runSingleCommand(ctx, cmd)
 		}
 	}
 
-	s.Stop()
-	fmt.Print("\r")
-	fmt.Print(strings.Repeat(" ", len(s.Suffix)+3))
-	fmt.Print("\r")
-	checkMark := color.New(color.FgGreen).SprintFunc()("√")
-	fmt.Printf("%s %s\n", checkMark, completeMsg)
-
-	return nil
+	return logfmt.ProgressSpinner(ctx, initialMsg, completeMsg, operations)
 }
 
 func (c *Client) runSingleCommand(ctx context.Context, command string) error {
