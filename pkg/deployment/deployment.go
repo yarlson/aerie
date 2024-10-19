@@ -7,13 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/yarlson/aerie/pkg/proxy"
-
 	"github.com/yarlson/aerie/pkg/config"
+	"github.com/yarlson/aerie/pkg/logfmt"
+	"github.com/yarlson/aerie/pkg/proxy"
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 
 type Executor interface {
 	RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error)
+	CopyFile(ctx context.Context, from, to string) error
 }
 
 type Deployment struct {
@@ -74,7 +76,7 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 		Port:  80,
 		Volumes: []string{
 			projectPath + "/:/etc/nginx/ssl",
-			configPath + ":/etc/nginx/conf.d/default.conf",
+			configPath + ":/etc/nginx/conf.d",
 		},
 		EnvVars: []config.EnvVar{
 			{
@@ -339,18 +341,6 @@ func (d *Deployment) runCommand(ctx context.Context, command string, args ...str
 	return result, nil
 }
 
-func (d *Deployment) copyTextFile(sourceText, destination string) error {
-	escapedSource := strings.ReplaceAll(sourceText, "'", "'\\''")
-	command := "bash"
-	args := []string{"-c", fmt.Sprintf("echo '%s' > %s", escapedSource, destination)}
-	_, err := d.runCommand(context.Background(), command, args...)
-	if err != nil {
-		return fmt.Errorf("failed to copy text file: %w", err)
-	}
-
-	return nil
-}
-
 func (d *Deployment) makeProjectFolder(projectName string) error {
 	projectPath, err := d.projectFolder(projectName)
 	if err != nil {
@@ -387,8 +377,26 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 		return "", fmt.Errorf("failed to generate nginx config: %w", err)
 	}
 
-	configPath := filepath.Join(projectPath, "nginx.conf")
-	return configPath, d.copyTextFile(nginxConfig, configPath)
+	nginxConfig = strings.TrimSpace(nginxConfig)
+	logfmt.Info(nginxConfig)
+
+	configPath := filepath.Join(projectPath, "nginx")
+	_, err = d.runCommand(context.Background(), "mkdir", "-p", configPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create nginx config directory: %w", err)
+	}
+
+	tmpFile, err := os.CreateTemp("", "nginx-config-*.conf")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(nginxConfig); err != nil {
+		return "", fmt.Errorf("failed to write nginx config to temporary file: %w", err)
+	}
+
+	return configPath, d.executor.CopyFile(context.Background(), tmpFile.Name(), filepath.Join(configPath, "default.conf"))
 }
 
 func ServiceHash(service *config.Service) (string, error) {

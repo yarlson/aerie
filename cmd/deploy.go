@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 	"github.com/yarlson/aerie/pkg/config"
 	"github.com/yarlson/aerie/pkg/deployment"
 	"github.com/yarlson/aerie/pkg/logfmt"
 	"github.com/yarlson/aerie/pkg/ssh"
-	"os"
-	"path/filepath"
 )
 
 var deployCmd = &cobra.Command{

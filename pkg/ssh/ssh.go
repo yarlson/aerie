@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bramvdbogaerde/go-scp"
 	"github.com/briandowns/spinner"
-
 	"github.com/fatih/color"
 	"golang.org/x/crypto/ssh"
 )
@@ -142,6 +142,24 @@ func (c *Client) RunCommand(ctx context.Context, command string, args ...string)
 	}
 
 	return bytes.NewReader(output.Bytes()), nil
+}
+
+func (c *Client) CopyFile(ctx context.Context, src, dst string) error {
+	if err := c.ensureConnected(); err != nil {
+		return err
+	}
+
+	client, err := scp.NewClientBySSH(c.sshClient)
+	if err != nil {
+		return fmt.Errorf("failed to create SCP client: %w", err)
+	}
+
+	file, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+
+	return client.CopyFile(ctx, file, dst, "0644")
 }
 
 func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, completeMsg string, commands []string) error {

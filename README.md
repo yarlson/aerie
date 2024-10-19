@@ -73,6 +73,7 @@ aerie setup
 ```
 
 This command:
+
 1. Installs essential software and Docker
 2. Configures the server firewall
 3. Creates a new user and adds them to the Docker group
@@ -101,10 +102,11 @@ Aerie uses a sophisticated deployment process to ensure your application is alwa
 4. **Image Pulling**: The latest versions of your Docker images are pulled to ensure you're deploying the most recent code.
 
 5. **Zero-Downtime Deployment**: For each service:
-    - A new container is started with the updated image and configuration.
-    - Health checks are performed to ensure the new container is ready.
-    - Once healthy, traffic is instantly switched to the new container.
-    - The old container is gracefully stopped and removed.
+
+   - A new container is started with the updated image and configuration.
+   - Health checks are performed to ensure the new container is ready.
+   - Once healthy, traffic is instantly switched to the new container.
+   - The old container is gracefully stopped and removed.
 
    This process ensures that your application remains available throughout the update.
 

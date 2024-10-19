@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -45,6 +44,12 @@ func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...
 	}
 
 	return bytes.NewReader(combinedOutput.Bytes()), nil
+}
+
+func (e *LocalExecutor) CopyFile(ctx context.Context, src, dst string) error {
+	cmd := exec.CommandContext(ctx, "cp", src, dst)
+
+	return cmd.Run()
 }
 
 func (suite *DeploymentTestSuite) SetupSuite() {
@@ -274,32 +279,6 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 		err = suite.updater.performHealthChecks(serviceName, updatedService.HealthCheck)
 		assert.NoError(suite.T(), err)
 	})
-}
-
-func (suite *DeploymentTestSuite) TestCopyTextFile() {
-	tmpDir, err := os.MkdirTemp("", "copyTextFile-test")
-	suite.Require().NoError(err)
-	defer os.RemoveAll(tmpDir)
-
-	sourceContent := "This is a test file\nWith multiple lines\nAnd some 'quoted' text"
-	destPath := filepath.Join(tmpDir, "destination.txt")
-
-	err = suite.updater.copyTextFile(sourceContent, destPath)
-	suite.Require().NoError(err)
-
-	destContent, err := os.ReadFile(destPath)
-	suite.Require().NoError(err)
-	suite.Equal(strings.TrimSpace(sourceContent), strings.TrimSpace(string(destContent)))
-
-	specialContent := "Line with 'single quotes'\nLine with \"double quotes\"\nLine with $dollar signs"
-	specialDestPath := filepath.Join(tmpDir, "special_destination.txt")
-
-	err = suite.updater.copyTextFile(specialContent, specialDestPath)
-	suite.Require().NoError(err)
-
-	specialDestContent, err := os.ReadFile(specialDestPath)
-	suite.Require().NoError(err)
-	suite.Equal(strings.TrimSpace(specialContent), strings.TrimSpace(string(specialDestContent)))
 }
 
 func (suite *DeploymentTestSuite) TestMakeProjectFolder() {

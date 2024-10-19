@@ -2,13 +2,13 @@ package config
 
 import (
 	"fmt"
-	"github.com/joho/godotenv"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
