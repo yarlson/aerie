@@ -1,15 +1,14 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os/exec"
 
 	"github.com/spf13/cobra"
+
 	"github.com/yarlson/ftl/pkg/build"
 	"github.com/yarlson/ftl/pkg/console"
+	"github.com/yarlson/ftl/pkg/executor/local"
 )
 
 var buildCmd = &cobra.Command{
@@ -32,7 +31,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	executor := &localExecutor{}
+	executor := local.NewExecutor()
 	builder := build.NewBuild(executor)
 
 	ctx := context.Background()
@@ -45,15 +44,4 @@ func runBuild(cmd *cobra.Command, args []string) {
 	}
 
 	console.Success("Build process completed successfully.")
-}
-
-type localExecutor struct{}
-
-func (e *localExecutor) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
-	cmd := exec.CommandContext(ctx, command, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("command execution failed: %w", err)
-	}
-	return bytes.NewReader(output), nil
 }
