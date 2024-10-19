@@ -5,6 +5,8 @@ project_name: ftl
 builds:
   - id: ftl
     main: ./main.go
+    env:
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -29,3 +31,20 @@ release:
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+brews:
+  - name: ftl
+    repository:
+      owner: yarlson
+      name: homebrew-ftl
+    url_template: "https://github.com/yarlson/ftl/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    commit_author:
+      name: Yar Kravtsov
+      email: yarlson@gmail.com
+    homepage: "https://github.com/yarlson/ftl"
+    description: "FTL - Faster Than Light deployment tool"
+    license: "MIT"
+    test: |
+      system "#{bin}/ftl --version"
+    install: |
+      bin.install "ftl"
