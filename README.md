@@ -1,4 +1,4 @@
-# FTL
+# 🚀 FTL
 
 FTL (Faster Than Light) is a powerful deployment tool that simplifies the process of setting up servers and deploying applications. It's designed to make deployment easy and reliable, even for developers who aren't experts in server management or advanced deployment techniques.
 
@@ -12,10 +12,39 @@ FTL (Faster Than Light) is a powerful deployment tool that simplifies the proces
 
 ## Installation
 
-To install FTL, you need to have Go installed on your system. Then, you can use the following command:
+There are several ways to install FTL:
+
+### Option 1: Install from Source
+
+To install FTL from source, you need to have Go installed on your system. Then, you can use the following command:
 
 ```bash
 go install github.com/yarlson/ftl@latest
+```
+
+### Option 2: Download Binary from GitHub
+
+You can download the pre-compiled binary for your operating system and architecture from the [GitHub Releases page](https://github.com/yarlson/ftl/releases). After downloading, follow these steps:
+
+1. Extract the downloaded archive.
+2. Make the binary executable.
+3. Move it to a directory in your PATH.
+
+For example, on Linux or macOS:
+
+```bash
+tar -xzf ftl_0.1.0_linux_amd64.tar.gz
+chmod +x ftl
+sudo mv ftl /usr/local/bin/
+```
+
+### Option 3: Install via Homebrew (macOS and Linux)
+
+If you're using Homebrew, you can install FTL using the following commands:
+
+```bash
+brew tap yarlson/ftl
+brew install ftl
 ```
 
 ## Configuration
