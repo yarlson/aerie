@@ -13,10 +13,10 @@ import (
 
 var buildCmd = &cobra.Command{
 	Use:   "build",
-	Short: "Build your application Docker image",
-	Long: `Build your application Docker image as defined in ftl.yaml.
+	Short: "Build your application Docker images",
+	Long: `Build your application Docker images as defined in ftl.yaml.
 This command handles the entire build process, including
-building and pushing the Docker image to the registry.`,
+building and pushing the Docker images to the registry.`,
 	Run: runBuild,
 }
 
