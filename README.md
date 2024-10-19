@@ -9,6 +9,7 @@ FTL (Faster Than Light) is a powerful deployment tool that simplifies the proces
 - **Zero-Downtime Deployments**: Update your applications without any service interruption.
 - **Docker-based**: Leverage the power and simplicity of Docker for consistent deployments.
 - **Automatic HTTPS**: Built-in Nginx proxy handles SSL/TLS certificate management.
+- **Build Management**: Build and push Docker images for your services.
 
 ## Installation
 
@@ -91,7 +92,7 @@ This configuration defines your project, servers, services, and storage requirem
 
 ## Usage
 
-FTL provides two main commands: `setup` and `deploy`.
+FTL provides three main commands: `setup`, `build`, and `deploy`.
 
 ### Setup
 
@@ -109,6 +110,26 @@ This command:
 4. Sets up SSH access for the new user
 
 Run this command once for each new server before deploying.
+
+### Build
+
+The `build` command builds Docker images for your services:
+
+```bash
+ftl build
+```
+
+This command:
+
+1. Reads the `ftl.yaml` configuration file
+2. Builds Docker images for each service defined in the configuration
+3. Pushes the built images to the specified Docker registry
+
+You can use the `--no-push` flag to build images without pushing them to the registry:
+
+```bash
+ftl build --no-push
+```
 
 ### Deploy
 
