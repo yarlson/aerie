@@ -3,7 +3,7 @@ package setup
 import (
 	"context"
 	"fmt"
-	"syscall"
+	"os"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -23,7 +23,7 @@ func RunSetup(ctx context.Context, server config.Server, sshKeyPath string) erro
 	logfmt.Success("SSH connection to the server established.")
 
 	fmt.Print("Enter password for new server user: ")
-	newUserPassword, err := term.ReadPassword(syscall.Stdin)
+	newUserPassword, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return fmt.Errorf("failed to read new server user password: %w", err)
 	}
