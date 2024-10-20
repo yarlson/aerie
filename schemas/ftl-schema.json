@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "domain": { "type": "string", "format": "hostname" },
+        "email": { "type": "string", "format": "email" }
+      },
+      "required": ["name", "domain", "email"]
+    },
+    "servers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "user": { "type": "string" },
+          "ssh_key": { "type": "string" }
+        },
+        "required": ["host", "port", "user", "ssh_key"]
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "image": { "type": "string" },
+          "port": { "type": "integer" },
+          "health_check": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string" },
+              "interval": { "type": "string" },
+              "timeout": { "type": "string" },
+              "retries": { "type": "integer" }
+            },
+            "required": ["path", "interval", "timeout", "retries"]
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": { "type": "string" },
+                "strip_prefix": { "type": "boolean" }
+              },
+              "required": ["path", "strip_prefix"]
+            }
+          }
+        },
+        "required": ["name", "path", "image", "port", "health_check", "routes"]
+      }
+    },
+    "storages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "image": { "type": "string" },
+          "volumes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["name", "image", "volumes"]
+      }
+    },
+    "volumes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["project", "servers", "services", "storages", "volumes"]
+}

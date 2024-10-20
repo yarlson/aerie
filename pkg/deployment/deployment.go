@@ -56,6 +56,17 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 		return fmt.Errorf("failed to create volumes: %w", err)
 	}
 
+	for _, storage := range cfg.Storages {
+		if err := console.ProgressSpinner(context.Background(),
+			fmt.Sprintf("Creating storage %s", storage.Name),
+			fmt.Sprintf("Storage %s created", storage.Name),
+			[]func() error{
+				func() error { return d.startStorage(&storage, network) },
+			}); err != nil {
+			return fmt.Errorf("failed to create storage %s: %w", storage.Name, err)
+		}
+	}
+
 	for _, service := range cfg.Services {
 		if err := console.ProgressSpinner(context.Background(),
 			fmt.Sprintf("Deploying service: %s", service.Name),
@@ -119,6 +130,23 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 
 	if err := d.deployService(service, network); err != nil {
 		return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
+	}
+
+	return nil
+}
+
+func (d *Deployment) startStorage(storage *config.Storage, network string) error {
+	if _, err := d.pullImage(storage.Image); err != nil {
+		return fmt.Errorf("failed to pull image for %s: %v", storage.Image, err)
+	}
+
+	service := &config.Service{
+		Name:    storage.Name,
+		Image:   storage.Image,
+		Volumes: storage.Volumes,
+	}
+	if err := d.startContainer(service, network, ""); err != nil {
+		return fmt.Errorf("failed to start container for %s: %v", storage.Image, err)
 	}
 
 	return nil
