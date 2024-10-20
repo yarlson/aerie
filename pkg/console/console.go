@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"golang.org/x/term"
 	"os"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"

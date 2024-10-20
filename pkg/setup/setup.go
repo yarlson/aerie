@@ -5,13 +5,32 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
+	"github.com/yarlson/ftl/pkg/executor/local"
 	sshPkg "github.com/yarlson/ftl/pkg/executor/ssh"
-	"golang.org/x/crypto/ssh"
 )
 
-func RunSetup(ctx context.Context, server config.Server, sshKeyPath, newUserPassword string) error {
+func DockerLogin(ctx context.Context, dockerUsername, dockerPassword string) error {
+	executor := local.NewExecutor()
+
+	if err := executor.RunCommandWithProgress(
+		ctx,
+		"Logging into Docker Hub...",
+		"Logged into Docker Hub successfully.",
+		[]string{
+			fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
+		},
+	); err != nil {
+		return fmt.Errorf("failed to configure docker hub: %w", err)
+	}
+
+	return nil
+}
+
+func RunSetup(ctx context.Context, server config.Server, sshKeyPath, dockerUsername, dockerPassword, newUserPassword string) error {
 	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, "root", sshKeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
@@ -33,6 +52,16 @@ func RunSetup(ctx context.Context, server config.Server, sshKeyPath, newUserPass
 
 	if err := setupServerSSHKey(ctx, client, server.User, rootKey); err != nil {
 		return err
+	}
+
+	client, _, err = sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	if err != nil {
+		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
+	}
+	defer client.Close()
+
+	if err := configureDockerHub(ctx, client, dockerUsername, dockerPassword); err != nil {
+		return fmt.Errorf("failed to configure docker hub: %w", err)
 	}
 
 	return nil
@@ -128,6 +157,19 @@ func setupServerSSHKey(ctx context.Context, client *sshPkg.Client, newUser strin
 		ctx,
 		"Configuring SSH access for the new user...",
 		"SSH access configured successfully.",
+		commands,
+	)
+}
+
+func configureDockerHub(ctx context.Context, client *sshPkg.Client, dockerUsername, dockerPassword string) error {
+	commands := []string{
+		fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
+	}
+
+	return client.RunCommandWithProgress(
+		ctx,
+		"Logging into Docker Hub...",
+		"Logged into Docker Hub successfully.",
 		commands,
 	)
 }

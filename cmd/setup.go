@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/setup"
@@ -32,16 +33,34 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	console.Input("Enter server user password:")
+	console.Input("Enter Docker Hub username:")
+	dockerUsername, err := console.ReadLine()
+	if err != nil {
+		console.ErrPrintln("Failed to read Docker Hub username:", err)
+		return
+	}
+
+	console.Input("Enter Docker Hub password:")
+	dockerPassword, err := console.ReadPassword()
+	if err != nil {
+		console.ErrPrintln("Failed to read Docker Hub password:", err)
+		return
+	}
+
+	console.Input("\nEnter server user password:")
 	newUserPassword, err := console.ReadPassword()
 	if err != nil {
 		console.ErrPrintln("Failed to read password:", err)
 		return
 	}
-	console.Success("\nServer user password received.")
+
+	if err := setup.DockerLogin(context.Background(), dockerUsername, dockerPassword); err != nil {
+		console.ErrPrintln("Failed to login to Docker Hub:", err)
+		return
+	}
 
 	for _, server := range cfg.Servers {
-		if err := setupServer(server, string(newUserPassword)); err != nil {
+		if err := setupServer(server, dockerUsername, dockerPassword, newUserPassword); err != nil {
 			console.ErrPrintln(fmt.Sprintf("Failed to setup server %s:", server.Host), err)
 			continue
 		}
@@ -51,7 +70,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	console.Success("Server setup completed successfully.")
 }
 
-func setupServer(server config.Server, newUserPassword string) error {
+func setupServer(server config.Server, dockerUsername, dockerPassword, newUserPassword string) error {
 	console.Info(fmt.Sprintf("Setting up server %s...", server.Host))
 
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
@@ -59,5 +78,5 @@ func setupServer(server config.Server, newUserPassword string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	return setup.RunSetup(ctx, server, sshKeyPath, newUserPassword)
+	return setup.RunSetup(ctx, server, sshKeyPath, dockerUsername, dockerPassword, newUserPassword)
 }
