@@ -100,7 +100,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "image"],
+        "required": ["name", "image", "volumes"],
         "properties": {
           "name": { "type": "string" },
           "image": { "type": "string" },
@@ -110,7 +110,17 @@
           },
           "env_vars": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

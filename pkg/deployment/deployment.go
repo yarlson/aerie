@@ -144,6 +144,7 @@ func (d *Deployment) startStorage(storage *config.Storage, network string) error
 		Name:    storage.Name,
 		Image:   storage.Image,
 		Volumes: storage.Volumes,
+		EnvVars: storage.EnvVars,
 	}
 	if err := d.startContainer(service, network, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", storage.Image, err)
