@@ -1,8 +1,11 @@
 package console
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"golang.org/x/term"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +19,7 @@ var (
 	Warning    = color.New(color.FgYellow).PrintlnFunc()
 	ErrPrintln = color.New(color.FgRed).PrintlnFunc()
 	ErrPrintf  = color.New(color.FgRed).PrintfFunc()
+	Input      = color.New(color.FgYellow).PrintFunc()
 )
 
 func ProgressSpinner(ctx context.Context, initialMsg, completeMsg string, operations []func() error) error {
@@ -59,4 +63,21 @@ func ProgressSpinner(ctx context.Context, initialMsg, completeMsg string, operat
 	fmt.Printf("%s %s\n", checkMark, completeMsg)
 
 	return nil
+}
+
+func ReadLine() (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
+}
+
+func ReadPassword() (string, error) {
+	password, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	return string(password), nil
 }

@@ -3,31 +3,21 @@ package setup
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
-
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/term"
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	sshPkg "github.com/yarlson/ftl/pkg/executor/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
-func RunSetup(ctx context.Context, server config.Server, sshKeyPath string) error {
+func RunSetup(ctx context.Context, server config.Server, sshKeyPath, newUserPassword string) error {
 	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, "root", sshKeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
 	}
 	defer client.Close()
 	console.Success("SSH connection to the server established.")
-
-	fmt.Print("Enter password for new server user: ")
-	newUserPassword, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		return fmt.Errorf("failed to read new server user password: %w", err)
-	}
-	console.Success("\nServer user password received.")
 
 	if err := installServerSoftware(ctx, client); err != nil {
 		return err
@@ -37,7 +27,7 @@ func RunSetup(ctx context.Context, server config.Server, sshKeyPath string) erro
 		return err
 	}
 
-	if err := createServerUser(ctx, client, server.User, string(newUserPassword)); err != nil {
+	if err := createServerUser(ctx, client, server.User, newUserPassword); err != nil {
 		return err
 	}
 
