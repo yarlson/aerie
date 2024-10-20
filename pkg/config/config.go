@@ -67,7 +67,8 @@ type Route struct {
 type Storage struct {
 	Name    string   `yaml:"name" validate:"required"`
 	Image   string   `yaml:"image" validate:"required"`
-	Volumes []string `yaml:"volumes" validate:"required,dive,volume_reference"`
+	Volumes []string `yaml:"volumes" validate:"dive,volume_reference"`
+	EnvVars []string `yaml:"env_vars" validate:"dive"`
 }
 
 type Volume struct {
