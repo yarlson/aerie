@@ -54,14 +54,16 @@ func RunSetup(ctx context.Context, server config.Server, sshKeyPath, dockerUsern
 		return err
 	}
 
-	client, _, err = sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
-	if err != nil {
-		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
-	}
-	defer client.Close()
+	if dockerUsername != "" && dockerPassword != "" {
+		client, _, err = sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+		if err != nil {
+			return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
+		}
+		defer client.Close()
 
-	if err := configureDockerHub(ctx, client, dockerUsername, dockerPassword); err != nil {
-		return fmt.Errorf("failed to configure docker hub: %w", err)
+		if err := configureDockerHub(ctx, client, dockerUsername, dockerPassword); err != nil {
+			return fmt.Errorf("failed to configure docker hub: %w", err)
+		}
 	}
 
 	return nil

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -33,30 +34,46 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	console.Input("Enter Docker Hub username:")
-	dockerUsername, err := console.ReadLine()
-	if err != nil {
-		console.ErrPrintln("Failed to read Docker Hub username:", err)
-		return
+	var dockerUsername, dockerPassword string
+
+	needDockerHubLogin := false
+	for _, service := range cfg.Services {
+		if imageFromDockerHub(service.Image) {
+			needDockerHubLogin = true
+			break
+		}
 	}
 
-	console.Input("Enter Docker Hub password:")
-	dockerPassword, err := console.ReadPassword()
-	if err != nil {
-		console.ErrPrintln("Failed to read Docker Hub password:", err)
-		return
+	if needDockerHubLogin {
+		console.Input("Enter Docker Hub username:")
+		dockerUsername, err = console.ReadLine()
+		if err != nil {
+			console.ErrPrintln("Failed to read Docker Hub username:", err)
+			return
+		}
+
+		console.Input("Enter Docker Hub password:")
+		dockerPassword, err = console.ReadPassword()
+		if err != nil {
+			console.ErrPrintln("Failed to read Docker Hub password:", err)
+			return
+		}
+		fmt.Println()
 	}
 
-	console.Input("\nEnter server user password:")
+	console.Input("Enter server user password:")
 	newUserPassword, err := console.ReadPassword()
 	if err != nil {
 		console.ErrPrintln("Failed to read password:", err)
 		return
 	}
+	fmt.Println()
 
-	if err := setup.DockerLogin(context.Background(), dockerUsername, dockerPassword); err != nil {
-		console.ErrPrintln("Failed to login to Docker Hub:", err)
-		return
+	if dockerUsername != "" && dockerPassword != "" {
+		if err := setup.DockerLogin(context.Background(), dockerUsername, dockerPassword); err != nil {
+			console.ErrPrintln("Failed to login to Docker Hub:", err)
+			return
+		}
 	}
 
 	for _, server := range cfg.Servers {
@@ -79,4 +96,12 @@ func setupServer(server config.Server, dockerUsername, dockerPassword, newUserPa
 	defer cancel()
 
 	return setup.RunSetup(ctx, server, sshKeyPath, dockerUsername, dockerPassword, newUserPassword)
+}
+
+func imageFromDockerHub(image string) bool {
+	parts := strings.SplitN(image, "/", 2)
+	if len(parts) > 1 && strings.Contains(parts[0], ".") {
+		return false
+	}
+	return true
 }
