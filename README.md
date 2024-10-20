@@ -55,7 +55,7 @@ You can download the pre-compiled binary for your operating system and architect
 For example, on Linux or macOS:
 
 ```bash
-tar -xzf ftl_0.1.0_linux_amd64.tar.gz
+tar -xzf ftl_*.tar.gz
 chmod +x ftl
 sudo mv ftl /usr/local/bin/
 ```
