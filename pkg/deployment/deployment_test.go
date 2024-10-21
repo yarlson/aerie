@@ -338,29 +338,78 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		},
 		Storages: []config.Storage{
 			{
-				Name:  "storage",
+				Name:  "postgres",
 				Image: "postgres:16",
 				Volumes: []string{
 					"postgres_data:/var/lib/postgresql/data",
 				},
 				EnvVars: []config.EnvVar{
-					{
-						Name:  "POSTGRES_PASSWORD",
-						Value: "S3cret",
-					},
-					{
-						Name:  "POSTGRES_USER",
-						Value: "test",
-					},
-					{
-						Name:  "POSTGRES_DB",
-						Value: "test",
-					},
+					{Name: "POSTGRES_PASSWORD", Value: "S3cret"},
+					{Name: "POSTGRES_USER", Value: "test"},
+					{Name: "POSTGRES_DB", Value: "test"},
+				},
+			},
+			{
+				Name:  "mysql",
+				Image: "mysql:8",
+				Volumes: []string{
+					"mysql_data:/var/lib/mysql",
+				},
+				EnvVars: []config.EnvVar{
+					{Name: "MYSQL_ROOT_PASSWORD", Value: "S3cret"},
+					{Name: "MYSQL_DATABASE", Value: "test"},
+					{Name: "MYSQL_USER", Value: "test"},
+					{Name: "MYSQL_PASSWORD", Value: "S3cret"},
+				},
+			},
+			{
+				Name:  "mongodb",
+				Image: "mongo:latest",
+				Volumes: []string{
+					"mongodb_data:/data/db",
+				},
+				EnvVars: []config.EnvVar{
+					{Name: "MONGO_INITDB_ROOT_USERNAME", Value: "root"},
+					{Name: "MONGO_INITDB_ROOT_PASSWORD", Value: "S3cret"},
+				},
+			},
+			{
+				Name:  "redis",
+				Image: "redis:latest",
+				Volumes: []string{
+					"redis_data:/data",
+				},
+			},
+			{
+				Name:  "rabbitmq",
+				Image: "rabbitmq:management",
+				Volumes: []string{
+					"rabbitmq_data:/var/lib/rabbitmq",
+				},
+				EnvVars: []config.EnvVar{
+					{Name: "RABBITMQ_DEFAULT_USER", Value: "user"},
+					{Name: "RABBITMQ_DEFAULT_PASS", Value: "S3cret"},
+				},
+			},
+			{
+				Name:  "elasticsearch",
+				Image: "elasticsearch:7.14.0",
+				Volumes: []string{
+					"elasticsearch_data:/usr/share/elasticsearch/data",
+				},
+				EnvVars: []config.EnvVar{
+					{Name: "discovery.type", Value: "single-node"},
+					{Name: "ES_JAVA_OPTS", Value: "-Xms512m -Xmx512m"},
 				},
 			},
 		},
 		Volumes: []string{
 			"postgres_data",
+			"mysql_data",
+			"mongodb_data",
+			"redis_data",
+			"rabbitmq_data",
+			"elasticsearch_data",
 		},
 	}
 
@@ -384,16 +433,38 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 
 	suite.removeContainer("proxy")
 	suite.removeContainer("web")
-	suite.removeContainer("storage")
+	suite.removeContainer("postgres")
+	suite.removeContainer("mysql")
+	suite.removeContainer("mongodb")
+	suite.removeContainer("redis")
+	suite.removeContainer("rabbitmq")
+	suite.removeContainer("elasticsearch")
 	suite.removeVolume("postgres_data")
+	suite.removeVolume("mysql_data")
+	suite.removeVolume("mongodb_data")
+	suite.removeVolume("redis_data")
+	suite.removeVolume("rabbitmq_data")
+	suite.removeVolume("elasticsearch_data")
 
 	defer func() {
 		suite.removeContainer("proxy")
 		suite.removeContainer("web")
-		suite.removeContainer("storage")
+		suite.removeContainer("postgres")
+		suite.removeContainer("mysql")
+		suite.removeContainer("mongodb")
+		suite.removeContainer("redis")
+		suite.removeContainer("rabbitmq")
+		suite.removeContainer("elasticsearch")
 		suite.removeVolume("postgres_data")
+		suite.removeVolume("mysql_data")
+		suite.removeVolume("mongodb_data")
+		suite.removeVolume("redis_data")
+		suite.removeVolume("rabbitmq_data")
+		suite.removeVolume("elasticsearch_data")
 	}()
 
-	err = suite.updater.Deploy(cfg, network)
-	assert.NoError(suite.T(), err)
+	suite.Run("Successful deployment", func() {
+		err = suite.updater.Deploy(cfg, network)
+		assert.NoError(suite.T(), err)
+	})
 }
