@@ -294,6 +294,10 @@ func (d *Deployment) startContainer(service *config.Service, network, suffix str
 }
 
 func (d *Deployment) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
+	if healthCheck == nil {
+		return nil
+	}
+
 	for i := 0; i < healthCheck.Retries; i++ {
 		output, err := d.runCommand(context.Background(), "docker", "inspect", "--format={{.State.Health.Status}}", container)
 		if err == nil && strings.TrimSpace(output) == "healthy" {
@@ -369,6 +373,10 @@ func (d *Deployment) pullImage(imageName string) (string, error) {
 
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
 	output, err := d.executor.RunCommand(ctx, command, args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to run command: %w", err)
+	}
+
 	outputBytes, readErr := io.ReadAll(output)
 	if readErr != nil {
 		return "", fmt.Errorf("failed to read command output: %v (original error: %w)", readErr, err)

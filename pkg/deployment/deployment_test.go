@@ -77,6 +77,10 @@ func (suite *DeploymentTestSuite) removeContainer(containerName string) {
 	_ = exec.Command("docker", "rm", "-f", containerName).Run()
 }
 
+func (suite *DeploymentTestSuite) removeVolume(volumeName string) {
+	_ = exec.Command("docker", "volume", "rm", volumeName).Run() // nolint: errcheck
+}
+
 func (suite *DeploymentTestSuite) inspectContainer(containerName string) map[string]interface{} {
 	cmd := exec.Command("docker", "inspect", containerName)
 	output, err := cmd.Output()
@@ -166,6 +170,18 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 				},
 			},
 		},
+		Storages: []config.Storage{
+			{
+				Name:  "storage",
+				Image: "postgres:16",
+				Volumes: []string{
+					"postgres_data:/var/lib/postgresql/data",
+				},
+			},
+		},
+		Volumes: []string{
+			"postgres_data",
+		},
 	}
 
 	projectPath, err := suite.updater.prepareProjectFolder(project)
@@ -187,10 +203,17 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 	}
 
 	suite.removeContainer("proxy")
+	suite.removeContainer("storage")
+	suite.removeVolume("postgres_data")
+
 	err = suite.updater.StartProxy(project, cfg, network)
 	assert.NoError(suite.T(), err)
 
-	defer suite.removeContainer("proxy")
+	defer func() {
+		suite.removeContainer("proxy")
+		suite.removeContainer("storage")
+		suite.removeVolume("postgres_data")
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -288,4 +311,89 @@ func (suite *DeploymentTestSuite) TestMakeProjectFolder() {
 		err := suite.updater.makeProjectFolder(projectName)
 		suite.Require().NoError(err)
 	})
+}
+
+func (suite *DeploymentTestSuite) TestDeploy() {
+	projectName := "test-project"
+	network := "ftl-test-network"
+
+	cfg := &config.Config{
+		Project: config.Project{
+			Name:   projectName,
+			Domain: "localhost",
+			Email:  "test@example.com",
+		},
+		Services: []config.Service{
+			{
+				Name:  "web",
+				Image: "nginx:1.20",
+				Port:  80,
+				Routes: []config.Route{
+					{
+						PathPrefix:  "/",
+						StripPrefix: false,
+					},
+				},
+			},
+		},
+		Storages: []config.Storage{
+			{
+				Name:  "storage",
+				Image: "postgres:16",
+				Volumes: []string{
+					"postgres_data:/var/lib/postgresql/data",
+				},
+				EnvVars: []config.EnvVar{
+					{
+						Name:  "POSTGRES_PASSWORD",
+						Value: "S3cret",
+					},
+					{
+						Name:  "POSTGRES_USER",
+						Value: "test",
+					},
+					{
+						Name:  "POSTGRES_DB",
+						Value: "test",
+					},
+				},
+			},
+		},
+		Volumes: []string{
+			"postgres_data",
+		},
+	}
+
+	projectPath, err := suite.updater.prepareProjectFolder(projectName)
+	assert.NoError(suite.T(), err)
+
+	proxyCertPath := filepath.Join(projectPath, "localhost.crt")
+	proxyKeyPath := filepath.Join(projectPath, "localhost.key")
+	mkcertCmds := [][]string{
+		{"mkcert", "-install"},
+		{"mkcert", "-cert-file", proxyCertPath, "-key-file", proxyKeyPath, "localhost"},
+	}
+
+	for _, cmd := range mkcertCmds {
+		if output, err := suite.updater.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
+			assert.NoError(suite.T(), err)
+			suite.T().Log(output)
+			return
+		}
+	}
+
+	suite.removeContainer("proxy")
+	suite.removeContainer("web")
+	suite.removeContainer("storage")
+	suite.removeVolume("postgres_data")
+
+	defer func() {
+		suite.removeContainer("proxy")
+		suite.removeContainer("web")
+		suite.removeContainer("storage")
+		suite.removeVolume("postgres_data")
+	}()
+
+	err = suite.updater.Deploy(cfg, network)
+	assert.NoError(suite.T(), err)
 }
