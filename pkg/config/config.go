@@ -44,7 +44,7 @@ type Service struct {
 
 	Forwards []string
 
-	EnvVars []EnvVar
+	EnvVars map[string]string
 }
 
 type EnvVar struct {
@@ -65,10 +65,10 @@ type Route struct {
 }
 
 type Storage struct {
-	Name    string   `yaml:"name" validate:"required"`
-	Image   string   `yaml:"image" validate:"required"`
-	Volumes []string `yaml:"volumes" validate:"dive,volume_reference"`
-	EnvVars []EnvVar `yaml:"env_vars" validate:"dive"`
+	Name    string            `yaml:"name" validate:"required"`
+	Image   string            `yaml:"image" validate:"required"`
+	Volumes []string          `yaml:"volumes" validate:"dive,volume_reference"`
+	EnvVars map[string]string `yaml:"env" validate:"dive"`
 }
 
 type Volume struct {
@@ -97,11 +97,11 @@ func ParseConfig(data []byte) (*Config, error) {
 			return nil, fmt.Errorf("failed to read .env file: %w", err)
 		}
 
+		if config.Services[service].EnvVars == nil {
+			config.Services[service].EnvVars = make(map[string]string)
+		}
 		for key, value := range envMap {
-			config.Services[service].EnvVars = append(config.Services[service].EnvVars, EnvVar{
-				Name:  key,
-				Value: value,
-			})
+			config.Services[service].EnvVars[key] = value
 		}
 	}
 

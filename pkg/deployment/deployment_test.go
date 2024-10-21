@@ -110,11 +110,8 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 		Name:  serviceName,
 		Image: "nginx:1.19",
 		Port:  80,
-		EnvVars: []config.EnvVar{
-			{
-				Name:  "INITIAL_ENV",
-				Value: "initial_value",
-			},
+		EnvVars: map[string]string{
+			"INITIAL_ENV": "initial_value",
 		},
 		Volumes: []string{
 			tmpDir + ":/initial/path",
@@ -147,11 +144,8 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 				Name:  serviceName,
 				Image: "nginx:1.20",
 				Port:  80,
-				EnvVars: []config.EnvVar{
-					{
-						Name:  "UPDATED_ENV",
-						Value: "updated_value",
-					},
+				EnvVars: map[string]string{
+					"UPDATED_ENV": "updated_value",
 				},
 				Volumes: []string{
 					tmpDir + ":/updated/path",
@@ -206,7 +200,7 @@ func (suite *DeploymentTestSuite) TestUpdateService() {
 	suite.removeContainer("storage")
 	suite.removeVolume("postgres_data")
 
-	err = suite.updater.StartProxy(project, cfg, network)
+	err = suite.updater.StartProxy(project, cfg)
 	assert.NoError(suite.T(), err)
 
 	defer func() {
@@ -343,10 +337,10 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				Volumes: []string{
 					"postgres_data:/var/lib/postgresql/data",
 				},
-				EnvVars: []config.EnvVar{
-					{Name: "POSTGRES_PASSWORD", Value: "S3cret"},
-					{Name: "POSTGRES_USER", Value: "test"},
-					{Name: "POSTGRES_DB", Value: "test"},
+				EnvVars: map[string]string{
+					"POSTGRES_PASSWORD": "S3cret",
+					"POSTGRES_USER":     "test",
+					"POSTGRES_DB":       "test",
 				},
 			},
 			{
@@ -355,11 +349,11 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				Volumes: []string{
 					"mysql_data:/var/lib/mysql",
 				},
-				EnvVars: []config.EnvVar{
-					{Name: "MYSQL_ROOT_PASSWORD", Value: "S3cret"},
-					{Name: "MYSQL_DATABASE", Value: "test"},
-					{Name: "MYSQL_USER", Value: "test"},
-					{Name: "MYSQL_PASSWORD", Value: "S3cret"},
+				EnvVars: map[string]string{
+					"MYSQL_ROOT_PASSWORD": "S3cret",
+					"MYSQL_DATABASE":      "test",
+					"MYSQL_USER":          "test",
+					"MYSQL_PASSWORD":      "S3cret",
 				},
 			},
 			{
@@ -368,9 +362,9 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				Volumes: []string{
 					"mongodb_data:/data/db",
 				},
-				EnvVars: []config.EnvVar{
-					{Name: "MONGO_INITDB_ROOT_USERNAME", Value: "root"},
-					{Name: "MONGO_INITDB_ROOT_PASSWORD", Value: "S3cret"},
+				EnvVars: map[string]string{
+					"MONGO_INITDB_ROOT_USERNAME": "root",
+					"MONGO_INITDB_ROOT_PASSWORD": "S3cret",
 				},
 			},
 			{
@@ -386,9 +380,9 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				Volumes: []string{
 					"rabbitmq_data:/var/lib/rabbitmq",
 				},
-				EnvVars: []config.EnvVar{
-					{Name: "RABBITMQ_DEFAULT_USER", Value: "user"},
-					{Name: "RABBITMQ_DEFAULT_PASS", Value: "S3cret"},
+				EnvVars: map[string]string{
+					"RABBITMQ_DEFAULT_USER": "user",
+					"RABBITMQ_DEFAULT_PASS": "S3cret",
 				},
 			},
 			{
@@ -397,9 +391,9 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				Volumes: []string{
 					"elasticsearch_data:/usr/share/elasticsearch/data",
 				},
-				EnvVars: []config.EnvVar{
-					{Name: "discovery.type", Value: "single-node"},
-					{Name: "ES_JAVA_OPTS", Value: "-Xms512m -Xmx512m"},
+				EnvVars: map[string]string{
+					"discovery.type": "single-node",
+					"ES_JAVA_OPTS":   "-Xms512m -Xmx512m",
 				},
 			},
 		},

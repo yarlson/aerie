@@ -80,7 +80,7 @@ func (d *Deployment) Deploy(project string, cfg *config.Config) error {
 	}
 
 	if err := console.ProgressSpinner(context.Background(), "Starting proxy", "Proxy started", []func() error{
-		func() error { return d.StartProxy(cfg.Project.Name, cfg, project) },
+		func() error { return d.StartProxy(cfg.Project.Name, cfg) },
 	}); err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
@@ -88,7 +88,7 @@ func (d *Deployment) Deploy(project string, cfg *config.Config) error {
 	return nil
 }
 
-func (d *Deployment) StartProxy(project string, cfg *config.Config, network string) error {
+func (d *Deployment) StartProxy(project string, cfg *config.Config) error {
 	projectPath, err := d.prepareProjectFolder(project)
 	if err != nil {
 		return fmt.Errorf("failed to prepare project folder: %w", err)
@@ -107,15 +107,9 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 			projectPath + "/:/etc/nginx/ssl",
 			configPath + ":/etc/nginx/conf.d",
 		},
-		EnvVars: []config.EnvVar{
-			{
-				Name:  "DOMAIN",
-				Value: cfg.Project.Domain,
-			},
-			{
-				Name:  "EMAIL",
-				Value: cfg.Project.Email,
-			},
+		EnvVars: map[string]string{
+			"DOMAIN": cfg.Project.Domain,
+			"EMAIL":  cfg.Project.Email,
 		},
 		Forwards: []string{
 			"80:80",
@@ -129,7 +123,7 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 		},
 	}
 
-	if err := d.deployService(network, service); err != nil {
+	if err := d.deployService(project, service); err != nil {
 		return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 	}
 
@@ -147,7 +141,7 @@ func (d *Deployment) startStorage(project string, storage *config.Storage) error
 		Volumes: storage.Volumes,
 		EnvVars: storage.EnvVars,
 	}
-	if err := d.startContainer(project, service, ""); err != nil {
+	if err := d.deployService(project, service); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", storage.Image, err)
 	}
 
@@ -262,8 +256,8 @@ func (d *Deployment) startContainer(project string, service *config.Service, suf
 
 	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix}
 
-	for _, env := range service.EnvVars {
-		args = append(args, "-e", fmt.Sprintf("%s=%s", env.Name, env.Value))
+	for key, value := range service.EnvVars {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
 	}
 
 	for _, volume := range service.Volumes {
