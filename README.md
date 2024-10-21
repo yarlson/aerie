@@ -77,14 +77,16 @@ services:
         strip_prefix: false
 
 storages:
-  - name: my-app-storage
-    image: my-app-storage:latest
-    volumes:
-      - my-app-storage:/var/www/html/storage
+  - name: postgres
+    image: postgres:16
+      - postgres_data:/var/lib/postgresql/data
+    env_vars:
+      - POSTGRES_PASSWORD=S3cret
+      - POSTGRES_USER=my-app
+      - POSTGRES_DB=my-app
 
 volumes:
-  - name: my-app-storage
-    path: /var/www/html/storage
+  - postgres_data
 ```
 
 This configuration defines your project, servers, services, and storage requirements.
