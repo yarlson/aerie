@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
@@ -36,9 +37,9 @@ func NewDeployment(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
-func (d *Deployment) Deploy(cfg *config.Config, network string) error {
+func (d *Deployment) Deploy(project string, cfg *config.Config) error {
 	if err := console.ProgressSpinner(context.Background(), "Creating network", "Network created", []func() error{
-		func() error { return d.createNetwork(network) },
+		func() error { return d.createNetwork(project) },
 	}); err != nil {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
@@ -46,7 +47,7 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 	if err := console.ProgressSpinner(context.Background(), "Creating volumes", "Volumes created", []func() error{
 		func() error {
 			for _, volume := range cfg.Volumes {
-				if err := d.createVolume(volume); err != nil {
+				if err := d.createVolume(project, volume); err != nil {
 					return fmt.Errorf("failed to create volume: %w", err)
 				}
 			}
@@ -61,7 +62,7 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 			fmt.Sprintf("Creating storage %s", storage.Name),
 			fmt.Sprintf("Storage %s created", storage.Name),
 			[]func() error{
-				func() error { return d.startStorage(&storage, network) },
+				func() error { return d.startStorage(project, &storage) },
 			}); err != nil {
 			return fmt.Errorf("failed to create storage %s: %w", storage.Name, err)
 		}
@@ -72,14 +73,14 @@ func (d *Deployment) Deploy(cfg *config.Config, network string) error {
 			fmt.Sprintf("Deploying service: %s", service.Name),
 			fmt.Sprintf("Service deployed: %s", service.Name),
 			[]func() error{
-				func() error { return d.deployService(&service, network) },
+				func() error { return d.deployService(project, &service) },
 			}); err != nil {
 			return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 		}
 	}
 
 	if err := console.ProgressSpinner(context.Background(), "Starting proxy", "Proxy started", []func() error{
-		func() error { return d.StartProxy(cfg.Project.Name, cfg, network) },
+		func() error { return d.StartProxy(cfg.Project.Name, cfg, project) },
 	}); err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
@@ -128,14 +129,14 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config, network stri
 		},
 	}
 
-	if err := d.deployService(service, network); err != nil {
+	if err := d.deployService(network, service); err != nil {
 		return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 	}
 
 	return nil
 }
 
-func (d *Deployment) startStorage(storage *config.Storage, network string) error {
+func (d *Deployment) startStorage(project string, storage *config.Storage) error {
 	if _, err := d.pullImage(storage.Image); err != nil {
 		return fmt.Errorf("failed to pull image for %s: %v", storage.Image, err)
 	}
@@ -146,7 +147,7 @@ func (d *Deployment) startStorage(storage *config.Storage, network string) error
 		Volumes: storage.Volumes,
 		EnvVars: storage.EnvVars,
 	}
-	if err := d.startContainer(service, network, ""); err != nil {
+	if err := d.startContainer(project, service, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", storage.Image, err)
 	}
 
@@ -158,7 +159,7 @@ func (d *Deployment) InstallService(service *config.Service, network string) err
 		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
 	}
 
-	if err := d.startContainer(service, network, ""); err != nil {
+	if err := d.startContainer(network, service, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
 	}
 
@@ -178,7 +179,7 @@ func (d *Deployment) UpdateService(service *config.Service, network string) erro
 		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
-	if err := d.startContainer(service, network, newContainerSuffix); err != nil {
+	if err := d.startContainer(network, service, newContainerSuffix); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
 
@@ -189,7 +190,7 @@ func (d *Deployment) UpdateService(service *config.Service, network string) erro
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", svcName, err)
 	}
 
-	oldContID, err := d.switchTraffic(svcName, network)
+	oldContID, err := d.switchTraffic(network, svcName)
 	if err != nil {
 		return fmt.Errorf("failed to switch traffic for %s: %v", svcName, err)
 	}
@@ -256,16 +257,19 @@ func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, 
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (d *Deployment) startContainer(service *config.Service, network, suffix string) error {
+func (d *Deployment) startContainer(project string, service *config.Service, suffix string) error {
 	svcName := service.Name
 
-	args := []string{"run", "-d", "--name", svcName + suffix, "--network", network, "--network-alias", svcName + suffix}
+	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix}
 
 	for _, env := range service.EnvVars {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", env.Name, env.Value))
 	}
 
 	for _, volume := range service.Volumes {
+		if unicode.IsLetter(rune(volume[0])) {
+			volume = fmt.Sprintf("%s-%s", project, volume)
+		}
 		args = append(args, "-v", volume)
 	}
 
@@ -308,16 +312,16 @@ func (d *Deployment) performHealthChecks(container string, healthCheck *config.H
 	return fmt.Errorf("container failed to become healthy")
 }
 
-func (d *Deployment) switchTraffic(service, network string) (string, error) {
+func (d *Deployment) switchTraffic(project, service string) (string, error) {
 	newContainer := service + newContainerSuffix
-	oldContainer, err := d.getContainerID(service, network)
+	oldContainer, err := d.getContainerID(service, project)
 	if err != nil {
 		return "", fmt.Errorf("failed to get old container ID: %v", err)
 	}
 
 	cmds := [][]string{
-		{"docker", "network", "disconnect", network, newContainer},
-		{"docker", "network", "connect", "--alias", service, network, newContainer},
+		{"docker", "network", "disconnect", project, newContainer},
+		{"docker", "network", "connect", "--alias", service, project, newContainer},
 	}
 
 	for _, cmd := range cmds {
@@ -329,7 +333,7 @@ func (d *Deployment) switchTraffic(service, network string) (string, error) {
 	time.Sleep(1 * time.Second)
 
 	cmds = [][]string{
-		{"docker", "network", "disconnect", network, oldContainer},
+		{"docker", "network", "disconnect", project, oldContainer},
 	}
 
 	for _, cmd := range cmds {
@@ -382,13 +386,7 @@ func (d *Deployment) runCommand(ctx context.Context, command string, args ...str
 		return "", fmt.Errorf("failed to read command output: %v (original error: %w)", readErr, err)
 	}
 
-	result := strings.TrimSpace(string(outputBytes))
-
-	if err != nil {
-		return result, fmt.Errorf("command failed: %w", err)
-	}
-
-	return result, nil
+	return strings.TrimSpace(string(outputBytes)), nil
 }
 
 func (d *Deployment) makeProjectFolder(projectName string) error {
@@ -502,8 +500,8 @@ func sortMap(m reflect.Value) map[string]interface{} {
 	return sorted
 }
 
-func (d *Deployment) serviceChanged(service *config.Service, network string) (bool, error) {
-	containerInfo, err := d.getContainerInfo(service.Name, network)
+func (d *Deployment) serviceChanged(project string, service *config.Service) (bool, error) {
+	containerInfo, err := d.getContainerInfo(service.Name, project)
 	if err != nil {
 		return false, fmt.Errorf("failed to get container info: %w", err)
 	}
@@ -516,15 +514,15 @@ func (d *Deployment) serviceChanged(service *config.Service, network string) (bo
 	return containerInfo.Config.Labels["ftl.config-hash"] != hash, nil
 }
 
-func (d *Deployment) deployService(service *config.Service, network string) error {
+func (d *Deployment) deployService(project string, service *config.Service) error {
 	hash, err := d.pullImage(service.Image)
 	if err != nil {
 		return fmt.Errorf("failed to pull image for %s: %w", service.Name, err)
 	}
 
-	containerInfo, err := d.getContainerInfo(service.Name, network)
+	containerInfo, err := d.getContainerInfo(service.Name, project)
 	if err != nil {
-		if err := d.InstallService(service, network); err != nil {
+		if err := d.InstallService(service, project); err != nil {
 			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
 		}
 
@@ -532,20 +530,20 @@ func (d *Deployment) deployService(service *config.Service, network string) erro
 	}
 
 	if hash != containerInfo.Image {
-		if err := d.UpdateService(service, network); err != nil {
+		if err := d.UpdateService(service, project); err != nil {
 			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
 		}
 
 		return nil
 	}
 
-	changed, err := d.serviceChanged(service, network)
+	changed, err := d.serviceChanged(project, service)
 	if err != nil {
 		return fmt.Errorf("failed to check if service %s has changed: %w", service.Name, err)
 	}
 
 	if changed {
-		if err := d.UpdateService(service, network); err != nil {
+		if err := d.UpdateService(service, project); err != nil {
 			return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
 		}
 	}
@@ -586,12 +584,13 @@ func (d *Deployment) createNetwork(network string) error {
 	return nil
 }
 
-func (d *Deployment) createVolume(volume string) error {
-	if _, err := d.runCommand(context.Background(), "docker", "volume", "inspect", volume); err == nil {
+func (d *Deployment) createVolume(project, volume string) error {
+	volumeName := fmt.Sprintf("%s-%s", project, volume)
+	if _, err := d.runCommand(context.Background(), "docker", "volume", "inspect", volumeName); err == nil {
 		return nil
 	}
 
-	_, err := d.runCommand(context.Background(), "docker", "volume", "create", volume)
+	_, err := d.runCommand(context.Background(), "docker", "volume", "create", volumeName)
 	if err != nil {
 		return fmt.Errorf("failed to create volume: %w", err)
 	}

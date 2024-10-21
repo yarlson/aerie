@@ -32,10 +32,8 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	networkName := fmt.Sprintf("%s-network", cfg.Project.Name)
-
 	for _, server := range cfg.Servers {
-		if err := deployToServer(cfg, server, networkName); err != nil {
+		if err := deployToServer(cfg.Project.Name, cfg, server); err != nil {
 			console.ErrPrintln(fmt.Sprintf("Failed to deploy to server %s:", server.Host), err)
 			continue
 		}
@@ -59,7 +57,7 @@ func parseConfig(filename string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func deployToServer(cfg *config.Config, server config.Server, networkName string) error {
+func deployToServer(project string, cfg *config.Config, server config.Server) error {
 	console.Info(fmt.Sprintf("Deploying to server %s...", server.Host))
 
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
@@ -71,7 +69,7 @@ func deployToServer(cfg *config.Config, server config.Server, networkName string
 
 	deploy := deployment.NewDeployment(client)
 
-	if err := deploy.Deploy(cfg, networkName); err != nil {
+	if err := deploy.Deploy(project, cfg); err != nil {
 		return fmt.Errorf("deployment failed: %w", err)
 	}
 
