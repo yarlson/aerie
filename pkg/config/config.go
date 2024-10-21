@@ -77,8 +77,10 @@ type Volume struct {
 }
 
 func ParseConfig(data []byte) (*Config, error) {
+	expandedData := os.ExpandEnv(string(data))
+
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return nil, fmt.Errorf("error parsing YAML: %v", err)
 	}
 

@@ -81,9 +81,9 @@ storages:
     image: postgres:16
       - postgres_data:/var/lib/postgresql/data
     env_vars:
-      - POSTGRES_PASSWORD=S3cret
-      - POSTGRES_USER=my-app
-      - POSTGRES_DB=my-app
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
 
 volumes:
   - postgres_data
