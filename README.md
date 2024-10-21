@@ -2,46 +2,25 @@
 
 FTL (Faster Than Light) is a powerful deployment tool designed specifically for developers who want to deploy their applications to popular cloud providers like **Hetzner**, **DigitalOcean**, **Linode**, or even **Raspberry Pi** and other servers but aren't sure where to start. FTL simplifies the process of setting up servers and deploying applications, making deployment easy and reliable, even for those who aren't experts in server management or advanced deployment techniques.
 
-## 📌 Table of Contents
-
-- [🚀 FTL](#-ftl)
-  - [📌 Table of Contents](#-table-of-contents)
-  - [🔑 Key Features](#-key-features)
-  - [💻 Installation](#-installation)
-    - [Option 1: Install from Source](#option-1-install-from-source)
-    - [Option 2: Download Binary from GitHub](#option-2-download-binary-from-github)
-    - [Option 3: Install via Homebrew (macOS and Linux)](#option-3-install-via-homebrew-macos-and-linux)
-  - [⚙️ Configuration](#️-configuration)
-  - [🚀 Usage](#-usage)
-    - [Setup](#setup)
-    - [Build](#build)
-    - [Deploy](#deploy)
-  - [🔄 How FTL Deploys Your Application](#-how-ftl-deploys-your-application)
-  - [🌟 Benefits of FTL's Deployment Process](#-benefits-of-ftls-deployment-process)
-  - [🛠️ Development](#️-development)
-    - [Contributing](#contributing)
-    - [Code of Conduct](#code-of-conduct)
-  - [📄 License](#-license)
-
 ## 🔑 Key Features
 
-- **Simple Configuration**: Define your entire infrastructure in a single YAML file.
-- **Automated Server Setup**: Quickly provision new servers with all necessary software.
-- **Zero-Downtime Deployments**: Update your applications without any service interruption.
-- **Docker-based**: Leverage the power and simplicity of Docker for consistent deployments.
-- **Automatic HTTPS**: Built-in Nginx proxy handles SSL/TLS certificate management.
-- **Build Management**: Build and push Docker images for your services.
+- Simple YAML configuration
+- Smooth server setup
+- Zero-downtime updates
+- Docker-based deployment
+- Built-in Nginx proxy with automatic SSL/TLS certificate provisioning via ACME
 
 ## 💻 Installation
 
 There are several ways to install FTL:
 
-### Option 1: Install from Source
+### Option 1: Install via Homebrew (macOS and Linux)
 
-To install FTL from source, you need to have [Go](https://golang.org/dl/) installed on your system. Then, you can use the following command:
+If you're using Homebrew, you can install FTL using the following commands:
 
 ```bash
-go install github.com/yarlson/ftl@latest
+brew tap yarlson/ftl
+brew install ftl
 ```
 
 ### Option 2: Download Binary from GitHub
@@ -60,13 +39,12 @@ chmod +x ftl
 sudo mv ftl /usr/local/bin/
 ```
 
-### Option 3: Install via Homebrew (macOS and Linux)
+### Option 3: Install from Source
 
-If you're using Homebrew, you can install FTL using the following commands:
+To install FTL from source, you need to have [Go](https://golang.org/dl/) installed on your system. Then, you can use the following command:
 
 ```bash
-brew tap yarlson/ftl
-brew install ftl
+go install github.com/yarlson/ftl@latest
 ```
 
 ## ⚙️ Configuration
