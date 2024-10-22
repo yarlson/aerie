@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/yarlson/ftl/pkg/console"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,7 +17,6 @@ import (
 	"unicode"
 
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/proxy"
 )
 
@@ -148,12 +148,12 @@ func (d *Deployment) startStorage(project string, storage *config.Storage) error
 	return nil
 }
 
-func (d *Deployment) InstallService(service *config.Service, network string) error {
+func (d *Deployment) InstallService(project string, service *config.Service) error {
 	if _, err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
 	}
 
-	if err := d.startContainer(network, service, ""); err != nil {
+	if err := d.startContainer(project, service, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
 	}
 
@@ -166,14 +166,14 @@ func (d *Deployment) InstallService(service *config.Service, network string) err
 	return nil
 }
 
-func (d *Deployment) UpdateService(service *config.Service, network string) error {
+func (d *Deployment) UpdateService(project string, service *config.Service) error {
 	svcName := service.Name
 
 	if _, err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
-	if err := d.startContainer(network, service, newContainerSuffix); err != nil {
+	if err := d.startContainer(project, service, newContainerSuffix); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
 
@@ -184,7 +184,7 @@ func (d *Deployment) UpdateService(service *config.Service, network string) erro
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", svcName, err)
 	}
 
-	oldContID, err := d.switchTraffic(network, svcName)
+	oldContID, err := d.switchTraffic(project, svcName)
 	if err != nil {
 		return fmt.Errorf("failed to switch traffic for %s: %v", svcName, err)
 	}
@@ -212,8 +212,8 @@ type containerInfo struct {
 	}
 }
 
-func (d *Deployment) getContainerID(service, network string) (string, error) {
-	info, err := d.getContainerInfo(service, network)
+func (d *Deployment) getContainerID(project, service string) (string, error) {
+	info, err := d.getContainerInfo(service, project)
 	if err != nil {
 		return "", err
 	}
@@ -268,7 +268,7 @@ func (d *Deployment) startContainer(project string, service *config.Service, suf
 	}
 
 	if service.HealthCheck != nil {
-		args = append(args, "--health-cmd", fmt.Sprintf("curl -f http://localhost:%d%s || exit 1", service.Port, service.HealthCheck.Path))
+		args = append(args, "--health-cmd", fmt.Sprintf("curl -sf http://localhost:%d%s || exit 1", service.Port, service.HealthCheck.Path))
 		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
 		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
 		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
@@ -308,7 +308,7 @@ func (d *Deployment) performHealthChecks(container string, healthCheck *config.H
 
 func (d *Deployment) switchTraffic(project, service string) (string, error) {
 	newContainer := service + newContainerSuffix
-	oldContainer, err := d.getContainerID(service, project)
+	oldContainer, err := d.getContainerID(project, service)
 	if err != nil {
 		return "", fmt.Errorf("failed to get old container ID: %v", err)
 	}
@@ -516,7 +516,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 
 	containerInfo, err := d.getContainerInfo(service.Name, project)
 	if err != nil {
-		if err := d.InstallService(service, project); err != nil {
+		if err := d.InstallService(project, service); err != nil {
 			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
 		}
 
@@ -524,7 +524,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 	}
 
 	if hash != containerInfo.Image {
-		if err := d.UpdateService(service, project); err != nil {
+		if err := d.UpdateService(project, service); err != nil {
 			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
 		}
 
@@ -537,7 +537,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 	}
 
 	if changed {
-		if err := d.UpdateService(service, project); err != nil {
+		if err := d.UpdateService(project, service); err != nil {
 			return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
 		}
 	}
