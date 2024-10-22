@@ -1,9 +1,14 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -123,4 +128,58 @@ func ParseConfig(data []byte) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func (s *Service) Hash() (string, error) {
+	sortedService := s.sortServiceFields()
+	bytes, err := json.Marshal(sortedService)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal sorted service: %w", err)
+	}
+
+	hash := sha256.Sum256(bytes)
+	return hex.EncodeToString(hash[:]), nil
+}
+
+func (s *Service) sortServiceFields() map[string]interface{} {
+	sorted := make(map[string]interface{})
+	v := reflect.ValueOf(*s)
+	t := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		value := v.Field(i).Interface()
+
+		switch reflect.TypeOf(value).Kind() {
+		case reflect.Slice:
+			s := reflect.ValueOf(value)
+			sorted[field.Name] = sortSlice(s)
+		case reflect.Map:
+			m := reflect.ValueOf(value)
+			sorted[field.Name] = sortMap(m)
+		default:
+			sorted[field.Name] = value
+		}
+	}
+
+	return sorted
+}
+
+func sortSlice(s reflect.Value) []interface{} {
+	sorted := make([]interface{}, s.Len())
+	for i := 0; i < s.Len(); i++ {
+		sorted[i] = s.Index(i).Interface()
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return fmt.Sprintf("%v", sorted[i]) < fmt.Sprintf("%v", sorted[j])
+	})
+	return sorted
+}
+
+func sortMap(m reflect.Value) map[string]interface{} {
+	sorted := make(map[string]interface{})
+	for _, key := range m.MapKeys() {
+		sorted[key.String()] = m.MapIndex(key).Interface()
+	}
+	return sorted
 }

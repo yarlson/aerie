@@ -2,16 +2,12 @@ package deployment
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/yarlson/ftl/pkg/console"
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -280,7 +276,7 @@ func (d *Deployment) startContainer(project string, service *config.Service, suf
 		}
 	}
 
-	hash, err := ServiceHash(service)
+	hash, err := service.Hash()
 	if err != nil {
 		return fmt.Errorf("failed to generate config hash: %w", err)
 	}
@@ -440,67 +436,13 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 	return configPath, d.executor.CopyFile(context.Background(), tmpFile.Name(), filepath.Join(configPath, "default.conf"))
 }
 
-func ServiceHash(service *config.Service) (string, error) {
-	sortedService := sortServiceFields(service)
-	bytes, err := json.Marshal(sortedService)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal sorted service: %w", err)
-	}
-
-	hash := sha256.Sum256(bytes)
-	return hex.EncodeToString(hash[:]), nil
-}
-
-func sortServiceFields(service *config.Service) map[string]interface{} {
-	sorted := make(map[string]interface{})
-	v := reflect.ValueOf(*service)
-	t := v.Type()
-
-	for i := 0; i < v.NumField(); i++ {
-		field := t.Field(i)
-		value := v.Field(i).Interface()
-
-		switch reflect.TypeOf(value).Kind() {
-		case reflect.Slice:
-			s := reflect.ValueOf(value)
-			sorted[field.Name] = sortSlice(s)
-		case reflect.Map:
-			m := reflect.ValueOf(value)
-			sorted[field.Name] = sortMap(m)
-		default:
-			sorted[field.Name] = value
-		}
-	}
-
-	return sorted
-}
-
-func sortSlice(s reflect.Value) []interface{} {
-	sorted := make([]interface{}, s.Len())
-	for i := 0; i < s.Len(); i++ {
-		sorted[i] = s.Index(i).Interface()
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return fmt.Sprintf("%v", sorted[i]) < fmt.Sprintf("%v", sorted[j])
-	})
-	return sorted
-}
-
-func sortMap(m reflect.Value) map[string]interface{} {
-	sorted := make(map[string]interface{})
-	for _, key := range m.MapKeys() {
-		sorted[key.String()] = m.MapIndex(key).Interface()
-	}
-	return sorted
-}
-
 func (d *Deployment) serviceChanged(project string, service *config.Service) (bool, error) {
 	containerInfo, err := d.getContainerInfo(service.Name, project)
 	if err != nil {
 		return false, fmt.Errorf("failed to get container info: %w", err)
 	}
 
-	hash, err := ServiceHash(service)
+	hash, err := service.Hash()
 	if err != nil {
 		return false, fmt.Errorf("failed to generate config hash: %w", err)
 	}
