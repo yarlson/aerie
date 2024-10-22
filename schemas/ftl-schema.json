@@ -96,7 +96,7 @@
         }
       }
     },
-    "storages": {
+    "dependencies": {
       "type": "array",
       "items": {
         "type": "object",

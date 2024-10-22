@@ -76,7 +76,7 @@ services:
       - path: /
         strip_prefix: false
 
-storages:
+dependencies:
   - name: postgres
     image: postgres:16
       - postgres_data:/var/lib/postgresql/data
@@ -89,7 +89,7 @@ volumes:
   - postgres_data
 ```
 
-This configuration defines your project, servers, services, and storage requirements.
+This configuration defines your project, servers, services, and dependencies.
 
 ## Usage
 

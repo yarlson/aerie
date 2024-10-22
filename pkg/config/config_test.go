@@ -36,13 +36,13 @@ func (suite *ConfigTestSuite) TestParseConfig_Success() {
 	assert.Len(suite.T(), config.Services[0].Routes, 1)
 	assert.Equal(suite.T(), "/", config.Services[0].Routes[0].PathPrefix)
 	assert.False(suite.T(), config.Services[0].Routes[0].StripPrefix)
-	assert.Len(suite.T(), config.Storages, 1)
-	assert.Equal(suite.T(), "my-app-storage", config.Storages[0].Name)
-	assert.Equal(suite.T(), "my-app-storage:latest", config.Storages[0].Image)
-	assert.Len(suite.T(), config.Storages[0].Volumes, 1)
-	assert.Equal(suite.T(), "my-app-storage:/var/www/html/storage", config.Storages[0].Volumes[0])
+	assert.Len(suite.T(), config.Dependencies, 1)
+	assert.Equal(suite.T(), "my-app-db", config.Dependencies[0].Name)
+	assert.Equal(suite.T(), "my-app-db:latest", config.Dependencies[0].Image)
+	assert.Len(suite.T(), config.Dependencies[0].Volumes, 1)
+	assert.Equal(suite.T(), "my-app-db:/var/www/html/db", config.Dependencies[0].Volumes[0])
 	assert.Len(suite.T(), config.Volumes, 1)
-	assert.Equal(suite.T(), "my-app-storage", config.Volumes[0])
+	assert.Equal(suite.T(), "my-app-db", config.Volumes[0])
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_InvalidYAML() {
@@ -80,7 +80,7 @@ services:
       - path: "/"
         strip_prefix: true
         port: 80
-storages:
+dependencies:
   - name: "db"
     image: "postgres:13"
     volumes:
@@ -110,7 +110,7 @@ services:
       - path: "/"
         strip_prefix: true
         port: 80
-storages:
+dependencies:
   - name: "db"
     image: "postgres:13"
     volumes:
@@ -140,7 +140,7 @@ services:
     routes:
       - path: "/"
         strip_prefix: true
-storages:
+dependencies:
   - name: "db"
     image: "postgres:13"
     volumes:
@@ -154,5 +154,5 @@ volumes:
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), config)
 	assert.Contains(suite.T(), err.Error(), "validation error")
-	assert.Contains(suite.T(), err.Error(), "Config.Storages[0].Volumes[0]")
+	assert.Contains(suite.T(), err.Error(), "Config.Dependencies[0].Volumes[0]")
 }

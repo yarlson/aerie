@@ -18,11 +18,11 @@ import (
 )
 
 type Config struct {
-	Project  Project   `yaml:"project" validate:"required"`
-	Servers  []Server  `yaml:"servers" validate:"required,dive"`
-	Services []Service `yaml:"services" validate:"required,dive"`
-	Storages []Storage `yaml:"storages" validate:"dive"`
-	Volumes  []string  `yaml:"volumes" validate:"dive"`
+	Project      Project      `yaml:"project" validate:"required"`
+	Servers      []Server     `yaml:"servers" validate:"required,dive"`
+	Services     []Service    `yaml:"services" validate:"required,dive"`
+	Dependencies []Dependency `yaml:"dependencies" validate:"required,dive"`
+	Volumes      []string     `yaml:"volumes" validate:"dive"`
 }
 
 type Project struct {
@@ -69,7 +69,7 @@ type Route struct {
 	StripPrefix bool   `yaml:"strip_prefix"`
 }
 
-type Storage struct {
+type Dependency struct {
 	Name    string            `yaml:"name" validate:"required"`
 	Image   string            `yaml:"image" validate:"required"`
 	Volumes []string          `yaml:"volumes" validate:"dive,volume_reference"`

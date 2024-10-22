@@ -109,7 +109,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				},
 			},
 		},
-		Storages: []config.Storage{
+		Dependencies: []config.Dependency{
 			{
 				Name:  "postgres",
 				Image: "postgres:16",

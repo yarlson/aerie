@@ -53,14 +53,14 @@ func (d *Deployment) Deploy(project string, cfg *config.Config) error {
 		return fmt.Errorf("failed to create volumes: %w", err)
 	}
 
-	for _, storage := range cfg.Storages {
+	for _, dependency := range cfg.Dependencies {
 		if err := console.ProgressSpinner(context.Background(),
-			fmt.Sprintf("Creating storage %s", storage.Name),
-			fmt.Sprintf("Storage %s created", storage.Name),
+			fmt.Sprintf("Creating dependency %s", dependency.Name),
+			fmt.Sprintf("Dependency %s created", dependency.Name),
 			[]func() error{
-				func() error { return d.startStorage(project, &storage) },
+				func() error { return d.startDependency(project, &dependency) },
 			}); err != nil {
-			return fmt.Errorf("failed to create storage %s: %w", storage.Name, err)
+			return fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err)
 		}
 	}
 
@@ -126,19 +126,19 @@ func (d *Deployment) StartProxy(project string, cfg *config.Config) error {
 	return nil
 }
 
-func (d *Deployment) startStorage(project string, storage *config.Storage) error {
-	if _, err := d.pullImage(storage.Image); err != nil {
-		return fmt.Errorf("failed to pull image for %s: %v", storage.Image, err)
+func (d *Deployment) startDependency(project string, dependency *config.Dependency) error {
+	if _, err := d.pullImage(dependency.Image); err != nil {
+		return fmt.Errorf("failed to pull image for %s: %v", dependency.Image, err)
 	}
 
 	service := &config.Service{
-		Name:    storage.Name,
-		Image:   storage.Image,
-		Volumes: storage.Volumes,
-		EnvVars: storage.EnvVars,
+		Name:    dependency.Name,
+		Image:   dependency.Image,
+		Volumes: dependency.Volumes,
+		EnvVars: dependency.EnvVars,
 	}
 	if err := d.deployService(project, service); err != nil {
-		return fmt.Errorf("failed to start container for %s: %v", storage.Image, err)
+		return fmt.Errorf("failed to start container for %s: %v", dependency.Image, err)
 	}
 
 	return nil

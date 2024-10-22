@@ -28,11 +28,11 @@ services:
       - path: /
         strip_prefix: false
 
-storages:
-  - name: my-app-storage
-    image: my-app-storage:latest
+dependencies:
+  - name: my-app-db
+    image: my-app-db:latest
     volumes:
-      - my-app-storage:/var/www/html/storage
+      - my-app-db:/var/www/html/db
 
 volumes:
-  - my-app-storage
+  - my-app-db
